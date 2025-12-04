@@ -2,6 +2,6 @@ import ProfileCard from "./components/profile_card";
 
 export default function Home() {
   return (
-    <ProfileCard />
+    <p>Yello!</p>
   );
 }
