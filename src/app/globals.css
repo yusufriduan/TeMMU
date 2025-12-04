@@ -24,3 +24,13 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.profile-card-wrapper {
+  background-color: var(--foreground);
+  color: var(--background);
+  display: flex;
+  width: 30%;
+  margin: 25% auto;
+  padding: 1em;
+  border-radius: 2em;
+}
