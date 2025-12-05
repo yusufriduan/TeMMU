@@ -1,6 +1,26 @@
+"use client";
+import { useEffect, useState } from "react";
+import InputBox from "../components/InputBox";
+
 export default function SignUp() {
+  // useStates for POST to Database later
+  const [fullName, setFullName] = useState("");
+  const [clientType, setClientType] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const handleOptionSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (e.target.value == "Mentor") {
+      setClientType("M");
+    } else if (e.target.value == "Student") {
+      setClientType("S");
+    } else {
+      console.log("Error");
+    }
+  };
+
   return (
-    <div className="w-screen h-screen flex flex-row">
+    <div className="w-screen h-screen flex flex-row text-white">
       <div
         id="left-half"
         className="relative w-1/2 h-full flex items-center justify-center"
@@ -33,8 +53,60 @@ export default function SignUp() {
           </p>
         </div>
       </div>
-      <div id="right-half" className="w-1/2 bg-white">
-        <form id="sign-up-form"></form>
+      <div
+        id="right-half"
+        className="w-1/2 bg-white flex justify-center items-center"
+      >
+        <div
+          id="signup-input-container"
+          className="w-4/5 h-4/5 shadow-md flex flex-col items-center text-black"
+        >
+          <h1 className="text-4xl m-16">
+            Sign up to <span className="font-bold">TeMMU</span>
+          </h1>
+          <InputBox
+            icon="/user.png"
+            value={fullName}
+            onChange={(e) => {
+              setFullName(e.target.value);
+            }}
+            placeholderText="Enter your Full Name"
+            width={96}
+            height={14}
+          ></InputBox>
+          <InputBox
+            icon="/envelope.png"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+            }}
+            placeholderText="Enter your Email"
+            width={96}
+            height={14}
+          ></InputBox>
+          <InputBox
+            icon="/lock.png"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+            }}
+            placeholderText="Create a Password"
+            width={96}
+            height={14}
+          ></InputBox>
+          <select
+            name="client-type"
+            id="client-type"
+            onChange={handleOptionSelect}
+            className="flex w-96 h-14 mb-4 border-black text-gray-500 border-2 rounded-lg cursor-pointer transition delay-150 duration-300 ease-in-out hover:border-blue-400 focus:border-blue-400"
+          >
+            <option value="" disabled selected>
+              Select a client type
+            </option>
+            <option value={clientType}>Mentor</option>
+            <option value={clientType}>Student</option>
+          </select>
+        </div>
       </div>
     </div>
   );
