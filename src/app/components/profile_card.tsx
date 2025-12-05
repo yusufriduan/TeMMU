@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import ImageWithFallback from "./image_with_fallback";
 import { MapPin } from "lucide-react";
 
@@ -14,15 +14,15 @@ function ProfileCard() {
           />
           <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
-            <h2 className="mb-1 font-bold text-lg">
-              Profile Name Placeholder
-            </h2>
+            <h2 className="mb-1 font-bold text-lg">Profile Name Placeholder</h2>
             <div>
               <p className="text-sm">Number of STEM Projects placeholder</p>
             </div>
             <div className="flex items-center gap-1 text-white/90 mb-2 badge-green">
               <MapPin className="w-4 h-4" />
-              <span className="bg-brand-softer border border-brand-subtle text-fg-brand-strong text-xs font-medium px-1.5 py-0.5 rounded">Location Placeholder</span>
+              <span className="bg-brand-softer border border-brand-subtle text-fg-brand-strong text-xs font-medium px-1.5 py-0.5 rounded">
+                Location Placeholder
+              </span>
             </div>
           </div>
         </div>
@@ -33,7 +33,7 @@ function ProfileCard() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 export default ProfileCard;
