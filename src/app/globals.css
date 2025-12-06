@@ -1,9 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #2a4975;
-  --foreground: #6299e7;
-  --highlighted: #fc9056;
+  --background: linear-gradient(to bottom, #155dfc, #9810fa);
+  --foreground: #b8cfff;
+  --bg-section: oklch(80.9% 0.105 251.813);
+  --highlighted: #a931ff;
+  --hover: #ba71ff;
 }
 
 @theme inline {
@@ -22,6 +24,8 @@
 }
 
 body {
+  width: 100%;
+  height: 100%;
   background: var(--background);
   color: #0a0a0a;
   font-family: Arial, Helvetica, sans-serif;
