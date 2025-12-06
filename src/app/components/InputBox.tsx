@@ -4,6 +4,7 @@ import { useRef } from "react";
 interface inputBoxProp {
   icon: string;
   value: string;
+  type: string;
   onChange: React.ChangeEventHandler<HTMLInputElement>;
   placeholderText: string;
   width: number;
@@ -13,6 +14,7 @@ interface inputBoxProp {
 export default function InputBox({
   icon,
   value,
+  type,
   onChange,
   placeholderText,
   width,
@@ -37,7 +39,7 @@ export default function InputBox({
       </span>
       <input
         ref={inputRef}
-        type="text"
+        type={type}
         value={value}
         onChange={onChange}
         placeholder={placeholderText}
