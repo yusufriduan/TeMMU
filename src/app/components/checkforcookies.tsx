@@ -5,10 +5,15 @@ import Cookies from "js-cookie";
 
 export default function CheckForCookies() {
   useEffect(() => {
-    const userCookie = Cookies.get("User");
-    console.log(userCookie);
-    if (userCookie == "undefined" || !userCookie) {
-      redirect("/login");
+    const user = localStorage.getItem("User");
+    if (!user || user == "undefined") {
+      const userCookie = Cookies.get("User");
+      console.log(userCookie);
+      if (!userCookie || userCookie == "undefined") {
+        redirect("/login");
+      } else {
+        return;
+      }
     }
   }, []);
 

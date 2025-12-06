@@ -18,6 +18,10 @@ export default function SignUp() {
   const [errField, setErrField] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
+    const user = localStorage.getItem("User");
+    if (user && user != "undefined") {
+      router.push("/");
+    }
     const userCookie = Cookies.get("User");
     if (userCookie && userCookie != "undefined") {
       router.push("/");

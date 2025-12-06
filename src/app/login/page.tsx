@@ -15,6 +15,10 @@ export default function login() {
   const router = useRouter();
 
   useEffect(() => {
+    const user = localStorage.getItem("User");
+    if (user && user != "undefined") {
+      router.push("/");
+    }
     const userCookie = Cookies.get("User");
     console.log(userCookie);
     if (userCookie && userCookie != "undefined") {
@@ -40,16 +44,10 @@ export default function login() {
           if (!isMatch) {
             errorField.innerHTML = "Incorrect Password";
           } else {
+            localStorage.setItem("User", data.client_id);
             if (checked) {
               Cookies.set("User", data.client_id, {
                 expires: 7,
-                path: "/",
-                secure: true,
-                sameSite: "strict",
-              });
-            } else {
-              // users who choose not to save session
-              Cookies.set("User", data.client_id, {
                 path: "/",
                 secure: true,
                 sameSite: "strict",

@@ -9,6 +9,9 @@ export default function logout() {
     if (Cookies.get("User")) {
       Cookies.remove("User");
     }
+    if (localStorage.getItem("User")) {
+      localStorage.removeItem("User");
+    }
     router.push("/login");
   }, [router]);
 
