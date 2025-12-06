@@ -15,6 +15,10 @@ export default function login() {
   const router = useRouter();
 
   useEffect(() => {
+    const user = localStorage.getItem("User");
+    if (user && user != "undefined") {
+      router.push("/");
+    }
     const userCookie = Cookies.get("User");
     console.log(userCookie);
     if (userCookie && userCookie != "undefined") {
@@ -40,16 +44,10 @@ export default function login() {
           if (!isMatch) {
             errorField.innerHTML = "Incorrect Password";
           } else {
+            localStorage.setItem("User", data.client_id);
             if (checked) {
               Cookies.set("User", data.client_id, {
                 expires: 7,
-                path: "/",
-                secure: true,
-                sameSite: "strict",
-              });
-            } else {
-              // users who choose not to save session
-              Cookies.set("User", data.client_id, {
                 path: "/",
                 secure: true,
                 sameSite: "strict",
@@ -120,7 +118,7 @@ export default function login() {
         <br></br>
         <button
           onClick={verifyData}
-          className="inline-block w-96 h-14 mb-2 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-lg text-white text-xl cursor-pointer transition delay-150 duration-300 ease-in-out active:scale-95"
+          className="inline-block w-96 h-14 mb-2 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-lg text-white text-xl cursor-pointer transition delay-150 duration-300 ease-in-out active:scale-75"
         >
           Log in
         </button>

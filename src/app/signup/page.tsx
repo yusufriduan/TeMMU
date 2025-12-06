@@ -18,6 +18,10 @@ export default function SignUp() {
   const [errField, setErrField] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
+    const user = localStorage.getItem("User");
+    if (user && user != "undefined") {
+      router.push("/");
+    }
     const userCookie = Cookies.get("User");
     if (userCookie && userCookie != "undefined") {
       router.push("/");
@@ -182,7 +186,7 @@ export default function SignUp() {
           </select>
           <button
             onClick={sendData}
-            className="inline-block w-96 h-14 mb-2 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-lg text-white text-xl cursor-pointer transition delay-150 duration-300 ease-in-out active:scale-95"
+            className="inline-block w-96 h-14 mb-2 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-lg text-white text-xl cursor-pointer transition delay-150 duration-300 ease-in-out active:scale-75"
           >
             Create Account
           </button>
