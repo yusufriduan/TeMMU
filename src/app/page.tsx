@@ -23,6 +23,21 @@ const WorkspaceContent = [
   { label: "Project Gamma", href: "/workspace/3" }
 ];
 
+{/* Sample Forum content data */ }
+const ForumContent = [
+  { title: "How to start a STEM research project?", author: "John Doe", topic: "STEM Research", preview: "I'm looking for advice on starting my first research project. What are the key steps?", replies: 12, views: 45, time: "2 hours ago" },
+  { title: "Looking for collaborators on AI project", author: "Jane Smith", topic: "Project Ideas", preview: "Working on a machine learning project and need team members with Python experience.", replies: 8, views: 32, time: "5 hours ago" },
+  { title: "Best practices for mentoring students", author: "Dr. Williams", topic: "Mentorship Tips", preview: "Share your experiences and tips on effective mentorship strategies.", replies: 24, views: 156, time: "1 day ago" },
+  { title: "Weekly check-in: What are you working on?", author: "Community Bot", topic: "General Discussion", preview: "Share your current projects and get feedback from the community!", replies: 36, views: 203, time: "2 days ago" },
+];
+
+{/* Topic color mapping */ }
+const topicColors: { [key: string]: string } = {
+  "STEM Research": "bg-blue-400",
+  "Project Ideas": "bg-green-400",
+  "Mentorship Tips": "bg-purple-400",
+  "General Discussion": "bg-yellow-400",
+};
 
 function Dashboard() {
   return (
@@ -302,13 +317,109 @@ function Dashboard() {
           </TabPanel>
 
           <TabPanel
-            className={"w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl"}
+            className={"w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto"}
           >
-            <div className="flex flex-col w-full h-full pt-4 pl-4">
-              {" "}
-              {/* Forums container */}
-              <h1 className="text-2xl font-bold">Forums</h1>
-              <span className="text-lg mb-4">Join the discussion!</span>
+            <div className="flex flex-col w-full h-full p-6">
+              {/* Forums Header */}
+              <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold">Forums</h1>
+                <Button className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out">
+                  New Discussion
+                </Button>
+              </div>
+
+              {/* Search and Filter Section */}
+              <div className="flex flex-row gap-4 mb-6">
+                <Input
+                  type="text"
+                  placeholder="Search discussions..."
+                  className="flex-1 bg-(--bg-section) rounded-lg px-4 py-2 border-2 border-gray-500 focus:border-blue-400 transition-colors"
+                />
+                <Menu>
+                  <MenuButton className="bg-(--bg-section) text-white px-4 py-2 rounded-lg border-2 border-gray-500 hover:bg-(--hover) hover:cursor-pointer transition-colors">
+                    Filter by Topic
+                  </MenuButton>
+                  <MenuItems
+                    anchor="bottom end"
+                    transition
+                    className="bg-(--foreground) rounded-3xl p-2 flex flex-col gap-2 border-2 border-gray-500 [--anchor-gap:8px] origin-top transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0"
+                  >
+                    <MenuItem>
+                      <button className="block w-full text-left pl-2 py-2 rounded-2xl data-focus:bg-(--hover) transition duration-300 ease-in-out">
+                        All Topics
+                      </button>
+                    </MenuItem>
+                    <MenuItem>
+                      <button className="block w-full text-left pl-2 py-2 rounded-2xl data-focus:bg-(--hover) transition duration-300 ease-in-out">
+                        STEM Research
+                      </button>
+                    </MenuItem>
+                    <MenuItem>
+                      <button className="block w-full text-left pl-2 py-2 rounded-2xl data-focus:bg-(--hover) transition duration-300 ease-in-out">
+                        Project Ideas
+                      </button>
+                    </MenuItem>
+                    <MenuItem>
+                      <button className="block w-full text-left pl-2 py-2 rounded-2xl data-focus:bg-(--hover) transition duration-300 ease-in-out">
+                        Mentorship Tips
+                      </button>
+                    </MenuItem>
+                    <MenuItem>
+                      <button className="block w-full text-left pl-2 py-2 rounded-2xl data-focus:bg-(--hover) transition duration-300 ease-in-out">
+                        General Discussion
+                      </button>
+                    </MenuItem>
+                  </MenuItems>
+                </Menu>
+              </div>
+
+              {/* Topic Tags */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                <button className="bg-blue-400 text-black px-3 py-1 rounded-full text-sm font-medium hover:bg-blue-500 hover:scale-105 transition-all">
+                  All Topics
+                </button>
+                <button className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-(--hover) hover:scale-105 transition-all">
+                  STEM Research
+                </button>
+                <button className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-(--hover) hover:scale-105 transition-all">
+                  Project Ideas
+                </button>
+                <button className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-(--hover) hover:scale-105 transition-all">
+                  Mentorship Tips
+                </button>
+                <button className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-(--hover) hover:scale-105 transition-all">
+                  General Discussion
+                </button>
+              </div>
+
+              {/* Discussion List */}
+              <div className="flex flex-col gap-4">
+                {ForumContent.map((discussion, index) => (
+                  <div key={index} className="bg-(--bg-section) rounded-2xl p-4 border-2 border-gray-500 hover:border-blue-400 hover:shadow-lg transition-all duration-300 hover:cursor-pointer">
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="text-lg font-bold">{discussion.title}</h3>
+                      <span className={`${topicColors[discussion.topic] || "bg-gray-600"} text-black px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap ml-2`}>
+                        {discussion.topic}
+                      </span>
+                    </div>
+                    <p className="text-gray-600 text-sm mb-3">
+                      {discussion.preview}
+                    </p>
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <div className="flex items-center gap-4">
+                        <span>Posted by: {discussion.author}</span>
+                        <span>•</span>
+                        <span>{discussion.time}</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span>{discussion.replies} replies</span>
+                        <span>•</span>
+                        <span>{discussion.views} views</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </TabPanel>
         </TabPanels>
