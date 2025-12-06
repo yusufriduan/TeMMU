@@ -11,8 +11,18 @@ import {
   MenuItems,
   Input,
 } from "@headlessui/react";
-import { User } from "lucide-react";
+import { ArrowRight, User } from "lucide-react";
 import CheckForCookies from "./components/checkforcookies";
+import { Fragment } from "react";
+import { title } from "process";
+
+{/* Sample workspace content data */ }
+const WorkspaceContent = [
+  { label: "Project Alpha", href: "/workspace/1" },
+  { label: "Project Beta", href: "/workspace/2" },
+  { label: "Project Gamma", href: "/workspace/3" }
+];
+
 
 function Dashboard() {
   return (
@@ -80,7 +90,7 @@ function Dashboard() {
               <MenuItems
                 anchor="bottom end"
                 transition
-                className="bg-(--foreground) rounded-3xl p-2 flex flex-col gap-2 border-black border w-(--button-width) --anchor-gap: 8px origin-top transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0"
+                className="bg-(--foreground) rounded-3xl p-2 flex flex-col gap-2 border-black border w-(--button-width) [--anchor-gap: 8px] origin-top transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0"
               >
                 <MenuItem>
                   <a
@@ -102,13 +112,45 @@ function Dashboard() {
             </Menu>
           </div>
         </div>
-        <TabPanels>
-          <TabPanel
-            className={
-              "w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto"
-            }
-          >
-            Workspaces
+        <TabPanels as={Fragment}>
+          <TabPanel className={"w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto"}>
+            <div className="flex flex-col h-full w-full p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold">Your Workspaces</h1>
+                <Button className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out">
+                  Create New Workspace
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {WorkspaceContent.map((workspace) => (
+                  <div
+                    key={workspace.href}
+                    className="bg-(--bg-section) rounded-3xl p-6 border-2 border-gray-500 shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 ease-in-out"
+                  >
+                    <h3 className="text-xl font-bold mb-3">{workspace.label}</h3>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span>Last modified: 2 hours ago</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="bg-green-400 text-black px-2 py-1 rounded-lg text-xs font-medium">
+                          Public
+                        </span>
+                        <span className="text-gray-600">3 collaborators</span>
+                      </div>
+                      <div className="border-t border-gray-600 pt-3 mt-2">
+                        <a
+                          href={workspace.href}
+                          className="block w-full bg-blue-400 text-black text-center px-4 py-2 rounded-2xl hover:bg-(--highlighted) hover:text-white hover:scale-105 transition-all duration-300 ease-in-out font-medium"
+                        >
+                          Open Workspace
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </TabPanel>
 
           <TabPanel

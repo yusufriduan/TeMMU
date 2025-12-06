@@ -134,7 +134,7 @@ function ProfilePage() {
                   type="file"
                   id="profile-picture"
                   className="w-full p-2 border border-gray-600 rounded-lg hover:cursor-pointer hover:scale-105 hover:bg-(--highlighted) hover:text-white transition-[border,scale,color] duration-300 ease-in-out"
-                  accept="image/*"
+                  accept="image/png, image/jpeg"
                 />
               </div>
             </div>
