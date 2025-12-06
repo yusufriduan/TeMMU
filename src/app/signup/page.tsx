@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { supabase } from "../../lib/supabase";
 import InputBox from "../components/InputBox";
 
 export default function SignUp() {
@@ -8,16 +9,6 @@ export default function SignUp() {
   const [clientType, setClientType] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  const handleOptionSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (e.target.value == "Mentor") {
-      setClientType("M");
-    } else if (e.target.value == "Student") {
-      setClientType("S");
-    } else {
-      console.log("Error");
-    }
-  };
 
   return (
     <div className="w-screen h-screen flex flex-row text-white">
@@ -97,15 +88,27 @@ export default function SignUp() {
           <select
             name="client-type"
             id="client-type"
-            onChange={handleOptionSelect}
+            value={clientType}
+            onChange={(e) => setClientType(e.target.value)}
             className="flex w-96 h-14 mb-4 border-black text-gray-500 border-2 rounded-lg cursor-pointer transition delay-150 duration-300 ease-in-out hover:border-blue-400 focus:border-blue-400"
           >
-            <option value="" disabled selected>
+            <option value="" disabled>
               Select a client type
             </option>
-            <option value={clientType}>Mentor</option>
-            <option value={clientType}>Student</option>
+            <option value="M">Mentor</option>
+            <option value="S">Student</option>
           </select>
+          <button className="w-96 h-14 mb-2 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-lg text-white text-xl cursor-pointer">
+            Create Account
+          </button>
+          <p>
+            Already have an account?{" "}
+            <span>
+              <button className="text-blue-500 underline cursor-pointer">
+                Sign up now
+              </button>
+            </span>
+          </p>
         </div>
       </div>
     </div>
