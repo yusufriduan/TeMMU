@@ -118,7 +118,7 @@ export default function login() {
         <br></br>
         <button
           onClick={verifyData}
-          className="inline-block w-96 h-14 mb-2 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-lg text-white text-xl cursor-pointer transition delay-150 duration-300 ease-in-out active:scale-95"
+          className="inline-block w-96 h-14 mb-2 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-lg text-white text-xl cursor-pointer transition delay-150 duration-300 ease-in-out active:scale-75"
         >
           Log in
         </button>
