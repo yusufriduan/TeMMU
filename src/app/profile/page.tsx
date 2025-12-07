@@ -7,6 +7,7 @@ import { University } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
+import { img } from "motion/react-client";
 
 function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
@@ -27,12 +28,12 @@ function ProfilePage() {
       [id === "full-name"
         ? "fullName"
         : id === "institution-name"
-        ? "institution"
-        : id === "email"
-        ? "email"
-        : id === "student-type"
-        ? "studentType"
-        : id]: value,
+          ? "institution"
+          : id === "email"
+            ? "email"
+            : id === "student-type"
+              ? "studentType"
+              : id]: value,
     }));
   };
 
@@ -49,6 +50,12 @@ function ProfilePage() {
     setIsEditing(false);
     updateDB();
   };
+
+  const handleCancelChanges = () => {
+    setFormData(profileData);
+    setIsEditing(false);
+    setImgSource(imgSource);
+  }
 
   async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
     const arrayBuffer = await blob.arrayBuffer();
@@ -198,6 +205,10 @@ function ProfilePage() {
                   {profileData.institution}
                 </span>
               </div>
+              <div className="border-t border-gray-600 w-[30vw] shadow-4xl"></div>
+              <p className="mt-2 text-(--text)">
+                Student Type: {profileData.studentType}
+              </p>
             </div>
           </div>
           <div className="w-1/2 p-8 flex flex-col">
@@ -298,7 +309,7 @@ function ProfilePage() {
                   id="profile-picture"
                   onChange={(e) => handleImageChange(e)}
                   className="w-full p-2 border border-gray-600 rounded-lg hover:cursor-pointer hover:scale-105 hover:bg-(--highlighted) hover:text-white transition-[border,scale,color] duration-300 ease-in-out"
-                  accept="image/*"
+                  accept="image/png, image/jpeg"
                 />
               </div>
             </div>
@@ -309,6 +320,12 @@ function ProfilePage() {
               className="m-8 bg-blue-400 text-black px-6 py-3 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,scale,color] duration-300 ease-in-out"
             >
               Save Changes
+            </Button>
+            <Button
+              onClick={handleCancelChanges}
+              className="m-8 bg-red-400 text-black px-6 py-3 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,scale,color] duration-300 ease-in-out"
+            >
+              Cancel
             </Button>
           </div>
         </div>
