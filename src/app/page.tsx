@@ -15,16 +15,16 @@ import {
   Field,
   Fieldset,
 } from "@headlessui/react";
-import { User, Camera, Send } from "lucide-react";
+import { User, Camera, Send, Plus } from "lucide-react";
 import CheckForCookies from "./components/checkforcookies";
 import { Fragment, useState } from "react";
 import ImageWithFallback from "./components/image_with_fallback";
 
 // Sample workspace content data
 const WorkspaceContent = [
-  { label: "Project Alpha", href: "/workspace/1" },
-  { label: "Project Beta", href: "/workspace/2" },
-  { label: "Project Gamma", href: "/workspace/3" },
+  { label: "Project Alpha", href: "/workspace/1", lastModified: "2 hours ago", AccessType: "Public", Collaborators: 3 },
+  { label: "Project Beta", href: "/workspace/2", lastModified: "1 day ago", AccessType: "Private", Collaborators: 2 },
+  { label: "Project Gamma", href: "/workspace/3", lastModified: "3 days ago", AccessType: "Public", Collaborators: 5 },
 ];
 
 const chatSeed = [
@@ -115,7 +115,12 @@ const topicColors: { [key: string]: string } = {
   "General Discussion": "bg-yellow-400",
 };
 
+const AccessTypesColors: { [key: string]: string } = {
+  "Public": "bg-green-400",
+  "Private": "bg-red-400",
+};
 function Dashboard() {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [chatSessions, setChatSessions] = useState(chatSeed);
   const [activeChatId, setActiveChatId] = useState(chatSeed[0]?.id ?? "");
   const [messageInput, setMessageInput] = useState("");
@@ -127,6 +132,15 @@ function Dashboard() {
   const handleSelectChat = (id: string) => {
     setActiveChatId(id);
     setChatSessions(prev => prev.map((chat) => chat.id === id ? { ...chat, unread: 0, lastActive: "Just now" } : chat));
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      console.log("File selected:", file.name);
+      setSelectedFile(file);
+      // Here you would typically handle the file upload to the server
+    }
   };
 
   const handleSendMessage = () => {
@@ -253,13 +267,13 @@ function Dashboard() {
                     <h3 className="text-xl font-bold mb-3">{workspace.label}</h3>
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span>Last modified: 2 hours ago</span>
+                        <span>Last modified: {workspace.lastModified}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
-                        <span className="bg-green-400 text-black px-2 py-1 rounded-lg text-xs font-medium">
-                          Public
+                        <span className={`${AccessTypesColors[workspace.AccessType]} text-black px-2 py-1 rounded-lg text-xs font-medium`}>
+                          {workspace.AccessType}
                         </span>
-                        <span className="text-gray-600">3 collaborators</span>
+                        <span className="text-gray-600">{workspace.Collaborators} collaborators</span>
                       </div>
                       <div className="border-t border-gray-600 pt-3 mt-2">
                         <a
@@ -418,7 +432,7 @@ function Dashboard() {
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
                           <div className="flex items-center gap-3">
                             <ImageWithFallback
-                              className="w-10 h-10  rounded-3xl" src={activeChat.avatar}></ImageWithFallback>
+                              className="w-10 h-10 rounded-3xl" src={activeChat.avatar}></ImageWithFallback>
                             <div className="flex flex-col">
                               <p className="font-semibold">{activeChat.name}</p>
                               <span className="text-xs text-gray-500">{activeChat.status}</span>
@@ -430,10 +444,10 @@ function Dashboard() {
                           {activeChat.messages.map((msg, idx) => (
                             <div
                               key={idx}
-                              className={`flex ${msg.from === "me" ? "justify-end" : "justify-start"}`}
+                              className={`flex ${msg.from === "you" ? "justify-end" : "justify-start"}`}
                             >
                               <div
-                                className={`w-full rounded-3xl px-4 py-2 text-sm shadow transition ${msg.from === "you"
+                                className={`max-w-[75%] rounded-3xl px-4 py-2 text-sm shadow transition ${msg.from === "you"
                                   ? "bg-yellow-400 text-black rounded-br-sm"
                                   : "bg-(--bg-section) text-gray-100 rounded-bl-sm"
                                   }`}
@@ -448,12 +462,31 @@ function Dashboard() {
                         </div>
 
                         <div className="flex items-center gap-3 px-6 py-4 border-t border-gray-700">
-                          <button
-                            type="button"
-                            className="flex h-11 w-11 items-center justify-center rounded-full bg-yellow-400 text-black hover:scale-105 transition"
-                          >
-                            <Camera size={18} />
-                          </button>
+                          <Menu>
+                            <MenuButton className="flex h-11 w-11 items-center justify-center p-2 bg-(--bg-section) rounded-full hover:cursor-pointer hover:bg-(--hover) hover:scale-105 transition duration-300 ease-in-out">
+                              <Plus size={16} />
+                            </MenuButton>
+                            <MenuItems
+                              anchor="top start"
+                              transition
+                              className="bg-(--foreground) rounded-3xl p-2 flex flex-col gap-2 border-black border w-fit [--anchor-gap: 8px] origin-top transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0"
+                            >
+                              <MenuItem>
+                                <label className="block w-full pl-2 data-focus:bg-(--hover) rounded-2xl p-1 transition duration-300 ease-in-out hover:cursor-pointer">
+                                  <input
+                                    type="file"
+                                    accept="application/pdf,image/jpeg,image/png"
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                  />
+                                  Upload File
+                                </label>
+                              </MenuItem>
+                              <MenuItem>
+                                <Button className={'px-3 py-2 rounded-2xl hover:bg-(--hover) hover:cursor-pointer transition duration-300 ease-in-out'}>Invite to workspace</Button>
+                              </MenuItem>
+                            </MenuItems>
+                          </Menu>
                           <Input
                             value={messageInput}
                             onChange={(e) => setMessageInput(e.target.value)}
@@ -463,7 +496,7 @@ function Dashboard() {
                           />
                           <Button
                             onClick={handleSendMessage}
-                            className="flex h-11 w-11 items-center justify-center rounded-full bg-yellow-400 text-black hover:scale-105 transition"
+                            className="flex h-11 w-11 items-center justify-center rounded-full bg-yellow-400 text-black hover:scale-105 hover:bg-(--hover) hover:cursor-pointer hover:text-white transition"
                           >
                             <Send size={16} />
                           </Button>
