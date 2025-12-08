@@ -17,15 +17,33 @@ import {
 } from "@headlessui/react";
 import { User, Camera, Send, Plus } from "lucide-react";
 import CheckForCookies from "./components/checkforcookies";
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import ImageWithFallback from "./components/image_with_fallback";
+import { supabase } from "../lib/supabase";
 
-// Sample workspace content data
-const WorkspaceContent = [
-  { label: "Project Alpha", href: "/workspace/1", lastModified: "2 hours ago", AccessType: "Public", Collaborators: 3 },
-  { label: "Project Beta", href: "/workspace/2", lastModified: "1 day ago", AccessType: "Private", Collaborators: 2 },
-  { label: "Project Gamma", href: "/workspace/3", lastModified: "3 days ago", AccessType: "Public", Collaborators: 5 },
-];
+interface workspaceContentFormat {
+  label: string;
+  href: string;
+  lastModified: string;
+  AccessType: string;
+  Collaborators: number;
+}
+
+interface userDataFormat {
+  client_id: number;
+  client_name: string;
+  client_email: string;
+  client_password: string;
+  client_type: string;
+  profile_picture: string;
+  university: string;
+}
+
+interface menteeDataFormat {
+  mentee: number;
+  enrolled: boolean;
+  mentee_name: string;
+}
 
 const chatSeed = [
   {
@@ -36,10 +54,22 @@ const chatSeed = [
     status: "2 hours ago",
     unread: 0,
     messages: [
-      { from: "them", content: "Hello! How can I assist you today?", timestamp: "10:00 AM" },
-      { from: "you", content: "I need help with my project.", timestamp: "10:05 AM" },
-      { from: "them", content: "Sure! What part are you struggling with?", timestamp: "10:10 AM" },
-    ]
+      {
+        from: "them",
+        content: "Hello! How can I assist you today?",
+        timestamp: "10:00 AM",
+      },
+      {
+        from: "you",
+        content: "I need help with my project.",
+        timestamp: "10:05 AM",
+      },
+      {
+        from: "them",
+        content: "Sure! What part are you struggling with?",
+        timestamp: "10:10 AM",
+      },
+    ],
   },
   {
     id: "mentor2",
@@ -49,11 +79,19 @@ const chatSeed = [
     status: "Typing...",
     unread: 5,
     messages: [
-      { from: "them", content: "Hi! Ready for our session?", timestamp: "Yesterday 2:00 PM" },
-      { from: "you", content: "Yes, looking forward to it!", timestamp: "Yesterday 2:05 PM" },
-    ]
+      {
+        from: "them",
+        content: "Hi! Ready for our session?",
+        timestamp: "Yesterday 2:00 PM",
+      },
+      {
+        from: "you",
+        content: "Yes, looking forward to it!",
+        timestamp: "Yesterday 2:05 PM",
+      },
+    ],
   },
-]
+];
 
 // Sample Forum content data
 const ForumContent = [
@@ -91,7 +129,8 @@ const ForumContent = [
     title: "Best practices for mentoring students",
     author: "Dr. Williams",
     topic: "Mentorship Tips",
-    preview: "Share your experiences and tips on effective mentorship strategies.",
+    preview:
+      "Share your experiences and tips on effective mentorship strategies.",
     replies: 24,
     views: 156,
     time: "1 day ago",
@@ -116,22 +155,32 @@ const topicColors: { [key: string]: string } = {
 };
 
 const AccessTypesColors: { [key: string]: string } = {
-  "Public": "bg-green-400",
-  "Private": "bg-red-400",
+  Public: "bg-green-400",
+  Private: "bg-red-400",
 };
 function Dashboard() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [chatSessions, setChatSessions] = useState(chatSeed);
   const [activeChatId, setActiveChatId] = useState(chatSeed[0]?.id ?? "");
   const [messageInput, setMessageInput] = useState("");
-
+  const [workspaces, setWorkspaces] = useState<workspaceContentFormat[]>([]);
+  // later for chats
+  const [userData, setUserData] = useState<userDataFormat>();
   const [showCreate, setShowCreate] = useState(false);
+  const [menteeList, setMenteeList] = useState<menteeDataFormat[]>([]);
 
-  const activeChat = chatSessions.find(chat => chat.id === activeChatId);
-  const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const activeChat = chatSessions.find((chat) => chat.id === activeChatId);
+  const nowTime = new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const handleSelectChat = (id: string) => {
     setActiveChatId(id);
-    setChatSessions(prev => prev.map((chat) => chat.id === id ? { ...chat, unread: 0, lastActive: "Just now" } : chat));
+    setChatSessions((prev) =>
+      prev.map((chat) =>
+        chat.id === id ? { ...chat, unread: 0, lastActive: "Just now" } : chat
+      )
+    );
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,16 +200,120 @@ function Dashboard() {
       prev.map((chat) =>
         chat.id === activeChat.id
           ? {
-            ...chat,
-            unread: 0,
-            lastMessage: text,
-            messages: [...chat.messages, { from: "you", content: text, timestamp: ts }],
-          }
+              ...chat,
+              unread: 0,
+              lastMessage: text,
+              messages: [
+                ...chat.messages,
+                { from: "you", content: text, timestamp: ts },
+              ],
+            }
           : chat
       )
     );
     setMessageInput("");
   };
+
+  useEffect(() => {
+    const user_data = localStorage.getItem("User");
+    async function fetchUserWorkspaces() {
+      if (!user_data || user_data === "undefined") return;
+
+      const { data: memberData, error: memberError } = await supabase
+        .from("WorkspaceMembers")
+        .select(
+          `
+      Workspace!inner(
+        workspace_id,
+        creation_date,
+        is_private,
+        workspace_name,
+        WorkspaceMembers!inner(member_id)
+      )
+    `
+        )
+        .eq("member_id", user_data);
+
+      if (memberError) {
+        console.error(memberError);
+        setWorkspaces([]);
+        return;
+      }
+
+      if (!memberData || memberData.length === 0) {
+        setWorkspaces([]);
+        return;
+      }
+
+      const workspaceArray: workspaceContentFormat[] = memberData.map(
+        (member) => {
+          // the bug is a ghost errors, these errors shouldn't even exist
+          console.log(Array.isArray(member.Workspace));
+          return {
+            label: member.Workspace.workspace_name,
+            href: `/workspace/${member.Workspace.workspace_id}`,
+            lastModified: new Date(
+              member.Workspace.creation_date
+            ).toDateString(),
+            AccessType: member.Workspace.is_private ? "Private" : "Public",
+            Collaborators: member.Workspace.WorkspaceMembers?.length ?? 0,
+          };
+        }
+      );
+
+      setWorkspaces(workspaceArray);
+    }
+
+    async function fetchMentees(mentorID: string) {
+      const { data, error } = await supabase
+        .from("MenteeList")
+        .select(`mentee, enrolled, Mentee:Clients!mentee(client_name)`)
+        .eq("mentor", mentorID);
+
+      if (data && data.length > 0) {
+        const menteeArr: menteeDataFormat[] = [];
+        data.map((m) => {
+          const menteeData = {
+            mentee: m.mentee,
+            enrolled: m.enrolled,
+            mentee_name: m.Mentee[0].client_name,
+          };
+
+          menteeArr.push(menteeData);
+        });
+
+        setMenteeList(menteeArr);
+      } else {
+        if (error) {
+          console.log(error);
+        } else {
+          setMenteeList([]);
+        }
+      }
+    }
+
+    async function fetchUserData() {
+      const { data, error } = await supabase
+        .from("Clients")
+        .select("*")
+        .eq("client_id", user_data)
+        .single();
+      setUserData(data);
+      return data;
+    }
+
+    async function fetchAll() {
+      const userInfo = await fetchUserData();
+      fetchUserWorkspaces();
+      if (userInfo.client_type == "Mentor") {
+        if (user_data) {
+          fetchMentees(user_data);
+        }
+      }
+    }
+
+    fetchAll();
+  }, []);
 
   return (
     <div className="w-screen h-full">
@@ -250,7 +403,11 @@ function Dashboard() {
           </div>
         </div>
         <TabPanels as={Fragment}>
-          <TabPanel className={"w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto bg-clip-content"}>
+          <TabPanel
+            className={
+              "w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto bg-clip-content"
+            }
+          >
             <div className="flex flex-col h-full w-full p-6">
               <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Your Workspaces</h1>
@@ -259,21 +416,29 @@ function Dashboard() {
                 </Button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {WorkspaceContent.map((workspace) => (
+                {workspaces.map((workspace) => (
                   <div
                     key={workspace.href}
                     className="bg-(--bg-section) rounded-3xl p-6 border-2 border-gray-500 shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 ease-in-out"
                   >
-                    <h3 className="text-xl font-bold mb-3">{workspace.label}</h3>
+                    <h3 className="text-xl font-bold mb-3">
+                      {workspace.label}
+                    </h3>
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <span>Last modified: {workspace.lastModified}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
-                        <span className={`${AccessTypesColors[workspace.AccessType]} text-black px-2 py-1 rounded-lg text-xs font-medium`}>
+                        <span
+                          className={`${
+                            AccessTypesColors[workspace.AccessType]
+                          } text-black px-2 py-1 rounded-lg text-xs font-medium`}
+                        >
                           {workspace.AccessType}
                         </span>
-                        <span className="text-gray-600">{workspace.Collaborators} collaborators</span>
+                        <span className="text-gray-600">
+                          {workspace.Collaborators} collaborators
+                        </span>
                       </div>
                       <div className="border-t border-gray-600 pt-3 mt-2">
                         <a
@@ -350,35 +515,41 @@ function Dashboard() {
                 Here are your current mentees:
               </span>
               <div className="flex flex-col gap-4 w-[80%] h-[60%] overflow-y-auto">
-                {/* Mentee cards would go here */}
-                <div className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg">
-                  <span>Mentee Name 1</span>
-                  <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                    Remove Mentee
-                  </Button>
-                </div>
-                <div className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg">
-                  <span>Mentee Name 2</span>
-                  <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                    Remove Mentee
-                  </Button>
-                </div>
+                {menteeList
+                  .filter((m) => m.enrolled)
+                  .map((m) => (
+                    <div
+                      key={m.mentee}
+                      className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
+                    >
+                      <span>{m.mentee_name}</span>
+                      <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                        Remove Mentee
+                      </Button>
+                    </div>
+                  ))}
               </div>
               <div className="mt-2 w-[80%] border-t border-gray-600">
                 <h1 className="px-4 py-2 rounded-lg font-bold">Requests</h1>
                 <div className="flex flex-col gap-4 w-full h-[40%]">
-                  {/* Mentee requests would go here */}
-                  <div className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg">
-                    <span>Mentee Name 3</span>
-                    <div className="flex flex-row gap-2">
-                      <Button className="bg-green-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                        Accept
-                      </Button>
-                      <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                        Decline
-                      </Button>
-                    </div>
-                  </div>
+                  {menteeList
+                    .filter((m) => !m.enrolled)
+                    .map((m) => (
+                      <div
+                        key={m.mentee}
+                        className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
+                      >
+                        <span>{m.mentee_name}</span>
+                        <div className="flex flex-row gap-2">
+                          <Button className="bg-green-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                            Accept
+                          </Button>
+                          <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                            Decline
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                 </div>
               </div>
             </div>
@@ -396,15 +567,22 @@ function Dashboard() {
                   {/* Chat Lists */}
                   <div className="flex flex-col align-top gap-4">
                     {chatSessions.map((chat) => (
-                      <button key={chat.id}
+                      <button
+                        key={chat.id}
                         onClick={() => handleSelectChat(chat.id)}
-                        className={`flex flex-row justify-between items-center p-2 ${chat.id === activeChatId ? "bg-(--highlighted)" : "bg-(--bg-section)"} rounded-lg shadow-lg hover:cursor-pointer hover:font-bold hover:bg-(--hover) transition duration-200 ease-in-out`}
+                        className={`flex flex-row justify-between items-center p-2 ${
+                          chat.id === activeChatId
+                            ? "bg-(--highlighted)"
+                            : "bg-(--bg-section)"
+                        } rounded-lg shadow-lg hover:cursor-pointer hover:font-bold hover:bg-(--hover) transition duration-200 ease-in-out`}
                       >
                         <div className="flex flex-row justify-between items-center p-2 w-full">
                           <div className="flex flex-col text-left">
                             <span>{chat.name.slice(0, 20)}</span>
                             <span className="text-sm text-gray-600">
-                              {chat.lastMessage || chat.messages.at(-1)?.content}                            </span>
+                              {chat.lastMessage ||
+                                chat.messages.at(-1)?.content}{" "}
+                            </span>
                           </div>
                           {chat.unread > 0 && (
                             <span className="self-start rounded-full bg-red-400 px-2 py-1 text-[11px] font-semibold text-black">
@@ -432,10 +610,14 @@ function Dashboard() {
                         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
                           <div className="flex items-center gap-3">
                             <ImageWithFallback
-                              className="w-10 h-10 rounded-3xl" src={activeChat.avatar}></ImageWithFallback>
+                              className="w-10 h-10 rounded-3xl"
+                              src={activeChat.avatar}
+                            ></ImageWithFallback>
                             <div className="flex flex-col">
                               <p className="font-semibold">{activeChat.name}</p>
-                              <span className="text-xs text-gray-500">{activeChat.status}</span>
+                              <span className="text-xs text-gray-500">
+                                {activeChat.status}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -444,13 +626,18 @@ function Dashboard() {
                           {activeChat.messages.map((msg, idx) => (
                             <div
                               key={idx}
-                              className={`flex ${msg.from === "you" ? "justify-end" : "justify-start"}`}
+                              className={`flex ${
+                                msg.from === "you"
+                                  ? "justify-end"
+                                  : "justify-start"
+                              }`}
                             >
                               <div
-                                className={`max-w-[75%] rounded-3xl px-4 py-2 text-sm shadow transition ${msg.from === "you"
-                                  ? "bg-yellow-400 text-black rounded-br-sm"
-                                  : "bg-(--bg-section) text-gray-100 rounded-bl-sm"
-                                  }`}
+                                className={`max-w-[75%] rounded-3xl px-4 py-2 text-sm shadow transition ${
+                                  msg.from === "you"
+                                    ? "bg-yellow-400 text-black rounded-br-sm"
+                                    : "bg-(--bg-section) text-gray-100 rounded-bl-sm"
+                                }`}
                               >
                                 <p>{msg.content}</p>
                                 <span className="mt-1 block text-[11px] text-gray-700 text-right">
@@ -483,14 +670,23 @@ function Dashboard() {
                                 </label>
                               </MenuItem>
                               <MenuItem>
-                                <Button className={'px-3 py-2 rounded-2xl hover:bg-(--hover) hover:cursor-pointer transition duration-300 ease-in-out'}>Invite to workspace</Button>
+                                <Button
+                                  className={
+                                    "px-3 py-2 rounded-2xl hover:bg-(--hover) hover:cursor-pointer transition duration-300 ease-in-out"
+                                  }
+                                >
+                                  Invite to workspace
+                                </Button>
                               </MenuItem>
                             </MenuItems>
                           </Menu>
                           <Input
                             value={messageInput}
                             onChange={(e) => setMessageInput(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleSendMessage())}
+                            onKeyDown={(e) =>
+                              e.key === "Enter" &&
+                              (e.preventDefault(), handleSendMessage())
+                            }
                             placeholder="Send a chat..."
                             className="flex-1 bg-(--bg-section) rounded-full px-4 py-3 border-2 border-gray-600 focus:border-yellow-400 transition-colors"
                           />
@@ -514,9 +710,15 @@ function Dashboard() {
           </TabPanel>
 
           <TabPanel
-            className={"w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto bg-clip-content"}
+            className={
+              "w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto bg-clip-content"
+            }
           >
-            <div className={`${showCreate ? "hidden" : "flex"} flex-col w-full h-full p-6`}>
+            <div
+              className={`${
+                showCreate ? "hidden" : "flex"
+              } flex-col w-full h-full p-6`}
+            >
               <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Forums</h1>
                 <Button
@@ -555,10 +757,17 @@ function Dashboard() {
               </div>
               <div className="flex flex-col gap-4">
                 {ForumContent.map((discussion, index) => (
-                  <div key={index} className="bg-(--bg-section) rounded-2xl p-4 border-2 border-gray-500 hover:border-blue-400 hover:shadow-lg transition-all duration-300 hover:cursor-pointer">
+                  <div
+                    key={index}
+                    className="bg-(--bg-section) rounded-2xl p-4 border-2 border-gray-500 hover:border-blue-400 hover:shadow-lg transition-all duration-300 hover:cursor-pointer"
+                  >
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="text-lg font-bold">{discussion.title}</h3>
-                      <span className={`${topicColors[discussion.topic] || "bg-gray-600"} text-black px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap ml-2`}>
+                      <span
+                        className={`${
+                          topicColors[discussion.topic] || "bg-gray-600"
+                        } text-black px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap ml-2`}
+                      >
                         {discussion.topic}
                       </span>
                     </div>
@@ -581,9 +790,15 @@ function Dashboard() {
                 ))}
               </div>
             </div>
-            <div className={`${showCreate ? "flex" : "hidden"} flex-col w-full h-full p-6`}>
+            <div
+              className={`${
+                showCreate ? "flex" : "hidden"
+              } flex-col w-full h-full p-6`}
+            >
               <Fieldset className="flex flex-col gap-4">
-                <legend className="text-2xl font-bold mb-4">Create New Discussion</legend>
+                <legend className="text-2xl font-bold mb-4">
+                  Create New Discussion
+                </legend>
                 <Field className="mt-4">
                   <label
                     htmlFor="discussion_title"
@@ -591,7 +806,14 @@ function Dashboard() {
                   >
                     Discussion Title
                   </label>
-                  <Input id="discussion_title" name="discussion_title" type="text" className={'w-full bg-(--bg-section) border-2 border-gray-500 rounded-lg p-2 focus:border-blue-400 transition-colors'} />
+                  <Input
+                    id="discussion_title"
+                    name="discussion_title"
+                    type="text"
+                    className={
+                      "w-full bg-(--bg-section) border-2 border-gray-500 rounded-lg p-2 focus:border-blue-400 transition-colors"
+                    }
+                  />
                 </Field>
                 <Field className="mt-4">
                   <label
@@ -608,7 +830,9 @@ function Dashboard() {
                     <option value="STEM Research">STEM Research</option>
                     <option value="Project Ideas">Project Ideas</option>
                     <option value="Mentorship Tips">Mentorship Tips</option>
-                    <option value="General Discussion">General Discussion</option>
+                    <option value="General Discussion">
+                      General Discussion
+                    </option>
                   </select>
                 </Field>
                 <Field className="mt-4">
@@ -644,7 +868,7 @@ function Dashboard() {
           </TabPanel>
         </TabPanels>
       </TabGroup>
-    </div >
+    </div>
   );
 }
 
