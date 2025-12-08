@@ -136,7 +136,7 @@ function Dashboard() {
   const [forumDesc, setForumDesc] = useState<string>("");
   const [activeForumFilter, setActiveForumFilter] = useState<string>("All Topics");
   const [forumCount, setForumCount] = useState<number>(0);
-
+  const [forumError, setForumError] = useState<string>("");
   const activeChat = chatSessions.find((chat) => chat.id === activeChatId);
   const nowTime = new Date().toLocaleTimeString([], {
     hour: "2-digit",
@@ -309,6 +309,7 @@ function Dashboard() {
 
     async function fetchAll() {
       const userInfo = await fetchUserData();
+      setUserData(userInfo);
       fetchUserWorkspaces();
       if (userInfo.client_type == "Mentor") {
         if (user_data) {
@@ -324,11 +325,13 @@ function Dashboard() {
   }, []);
 
   async function postForums() {
+    setForumError("");
     const user_id = localStorage.getItem("User");
     const now = new Date();
 
     if (forumTitle == "") {
-      console.log("Missing title yusuf pls add error message");
+      console.log("Missing title. Please add one.");
+      setForumError("Missing title. Please add one.");
       return null;
     }
 
@@ -342,6 +345,7 @@ function Dashboard() {
 
     if (error) {
       console.log(error);
+      setForumError("Error posting forum. Please try again.");
     }
 
     if (forumCount < 10) {
@@ -452,20 +456,24 @@ function Dashboard() {
               <div className={"flex"}>
                 {" "}
                 {/* Roles Exclusives */}
-                <Tab
-                  className={
-                    " flex rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
-                  }
-                >
-                  Find Mentors
-                </Tab>
-                <Tab
-                  className={
-                    "rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
-                  }
-                >
-                  Manage Mentees
-                </Tab>
+                {userData?.client_type === "Student" && (
+                  <Tab
+                    className={
+                      " flex rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
+                    }
+                  >
+                    Find Mentors
+                  </Tab>
+                )}
+                {userData?.client_type === "Mentor" && (
+                  <Tab
+                    className={
+                      "rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
+                    }
+                  >
+                    Manage Mentees
+                  </Tab>
+                )}
               </div>
               <Tab
                 className={
@@ -623,132 +631,137 @@ function Dashboard() {
             </div>
           </TabPanel>
 
-          <TabPanel
-            className={
-              "flex w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl p-4"
-            }
-          >
-            {/* Find Mentors Container */}
-            <div className={`${isManaging ? "hidden" : "flex"} flex-col items-center w-full h-full p-20 overflow-y-auto`}>
-              <h1 className="text-2xl mb-1 font-bold">Looking for Mentor?</h1>
-              <span className="text-lg mb-4">Just Search!</span>
-              <form className="flex flex-row gap-4">
-                <Input
-                  name="full_name"
-                  type="text"
-                  className={"bg-blue-400 rounded-lg p-2 text-black"}
-                  placeholder="Type the name!"
-                ></Input>
-                <Button
-                  className={
-                    "bg-blue-400 rounded-lg p-2 text-black data-hover:bg-(--highlighted) data-hover:cursor-pointer data-hover:text-white transition duration-300 ease-in-out"
-                  }
-                >
-                  Search
-                </Button>
-              </form>
-
-              {/* Recommended Mentors Section */}
-              <div className="flex flex-col items-center mt-4">
-                <h1>Here's some recommended tutors you may like!</h1>
-                <div className="grid grid-cols-3 gap-4 p-4">
-                  <ProfileCard />
-                </div>
-
-                {/* Search Results */}
-                <div className=" hidden grid-cols-3 gap-4 mt-4">
-                  <h1>Search Results for NAME INPUT</h1>
-                  {/* Mentor cards would go here */}
-                </div>
-
-                {/* No Results Message */}
-                <div className="hidden mt-4">
-                  <p>
-                    No mentors found. Try searching with different keywords.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className={`${isManaging ? "flex flex-col items-center p-2 w-full h-full" : "hidden"}`}>
-              <h1 className="text-2xl mb-1 font-bold">Manage Mentors</h1>
-              <span className="text-lg mb-4">Here are your current mentors:</span>
-              <div className="grid grid-cols-3 gap-4 w-[80%] max-h-[60%] overflow-y-auto">
-                {mentorList.map((m) =>
-                  <div
-                    key={m.mentor_id}
-                    className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
+          {userData?.client_type === "Student" && (
+            <TabPanel
+              className={
+                "flex w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl p-4"
+              }
+            >
+              {/* Find Mentors Container */}
+              <div className={`${isManaging ? "hidden" : "flex"} flex-col items-center w-full h-full p-20 overflow-y-auto`}>
+                <h1 className="text-2xl mb-1 font-bold">Looking for Mentor?</h1>
+                <span className="text-lg mb-4">Just Search!</span>
+                <form className="flex flex-row gap-4">
+                  <Input
+                    name="full_name"
+                    type="text"
+                    className={"bg-blue-400 rounded-lg p-2 text-black"}
+                    placeholder="Type the name!"
+                  ></Input>
+                  <Button
+                    className={
+                      "bg-blue-400 rounded-lg p-2 text-black data-hover:bg-(--highlighted) data-hover:cursor-pointer data-hover:text-white transition duration-300 ease-in-out"
+                    }
                   >
-                    <span>{m.mentor_name}</span>
-                    <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                      Remove Mentors
-                    </Button>
+                    Search
+                  </Button>
+                </form>
+
+                {/* Recommended Mentors Section */}
+                <div className="flex flex-col items-center mt-4">
+                  <h1>Here's some recommended tutors you may like!</h1>
+                  <div className="grid grid-cols-3 gap-4 p-4">
+                    <ProfileCard />
                   </div>
-                )}
+
+                  {/* Search Results */}
+                  <div className=" hidden grid-cols-3 gap-4 mt-4">
+                    <h1>Search Results for NAME INPUT</h1>
+                    {/* Mentor cards would go here */}
+                  </div>
+
+                  {/* No Results Message */}
+                  <div className="hidden mt-4">
+                    <p>
+                      No mentors found. Try searching with different keywords.
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="absolute top-45 right-30 z-100">
-              <Button onClick={() => setIsManaging(!isManaging)} className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--hover) data-active:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out">
-                {isManaging ? "Done Managing" : "Manage Mentors"}</Button>
-            </div>
-          </TabPanel>
-
-          <TabPanel
-            className={"flex flex-col justify-between items-center w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto p-4"}
-          >
-            {" "}
-            {/* Manage Mentees Container */}
-            <div className="flex flex-col items-center w-full max-h-[60%] p-4 mb-4 overflow-y-auto">
-              <h1 className="text-2xl mb-1 font-bold">Manage Your Mentees</h1>
-              <span className="text-lg mb-4">
-                Here are your current mentees:
-              </span>
-              <div className="flex flex-col gap-4 w-[80%] max-h-[60%] overflow-y-auto">
-                {menteeList
-                  .filter((m) => m.enrolled)
-                  .map((m) => (
+              <div className={`${isManaging ? "flex flex-col items-center p-2 w-full h-full" : "hidden"}`}>
+                <h1 className="text-2xl mb-1 font-bold">Manage Mentors</h1>
+                <span className="text-lg mb-4">Here are your current mentors:</span>
+                <div className="grid grid-cols-3 gap-4 w-[80%] max-h-[60%] overflow-y-auto">
+                  {mentorList.map((m) =>
                     <div
-                      key={m.mentee}
+                      key={m.mentor_id}
                       className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
                     >
-                      <span>{m.mentee_name}</span>
+                      <span>{m.mentor_name}</span>
                       <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                        Remove Mentee
+                        Remove Mentors
                       </Button>
                     </div>
-                  ))}
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="mt-2 w-[80%] max-h-[60%] border-t border-gray-600">
-              {menteeList.length > 0 ? (
-                <><h1 className="px-4 py-2 rounded-lg font-bold">Requests</h1><div className="flex flex-col gap-4 w-full h-[40%]">
+
+              <div className="absolute top-45 right-30 z-100">
+                <Button onClick={() => setIsManaging(!isManaging)} className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--hover) data-active:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out">
+                  {isManaging ? "Done Managing" : "Manage Mentors"}</Button>
+              </div>
+            </TabPanel>
+          )}
+
+          {userData?.client_type === "Mentor" && (
+
+            <TabPanel
+              className={"flex flex-col justify-between items-center w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto p-4"}
+            >
+              {" "}
+              {/* Manage Mentees Container */}
+              <div className="flex flex-col items-center w-full max-h-[60%] p-4 mb-4 overflow-y-auto">
+                <h1 className="text-2xl mb-1 font-bold">Manage Your Mentees</h1>
+                <span className="text-lg mb-4">
+                  Here are your current mentees:
+                </span>
+                <div className="flex flex-col gap-4 w-[80%] max-h-[60%] overflow-y-auto">
                   {menteeList
-                    .filter((m) => !m.enrolled)
+                    .filter((m) => m.enrolled)
                     .map((m) => (
                       <div
                         key={m.mentee}
                         className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
                       >
                         <span>{m.mentee_name}</span>
-                        <div className="flex flex-row gap-2">
-                          <Button className="bg-green-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                            Accept
-                          </Button>
-                          <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                            Decline
-                          </Button>
-                        </div>
+                        <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                          Remove Mentee
+                        </Button>
                       </div>
                     ))}
-                </div></>
-              ) : (
-                <>
-                  <h1 className="px-4 py-2 rounded-lg font-bold">No Requests</h1>
-                </>
-              )}
-            </div>
-          </TabPanel>
+                </div>
+              </div>
+              <div className="mt-2 w-[80%] max-h-[60%] border-t border-gray-600">
+                {menteeList.length > 0 ? (
+                  <><h1 className="px-4 py-2 rounded-lg font-bold">Requests</h1><div className="flex flex-col gap-4 w-full h-[40%]">
+                    {menteeList
+                      .filter((m) => !m.enrolled)
+                      .map((m) => (
+                        <div
+                          key={m.mentee}
+                          className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
+                        >
+                          <span>{m.mentee_name}</span>
+                          <div className="flex flex-row gap-2">
+                            <Button className="bg-green-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                              Accept
+                            </Button>
+                            <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                              Decline
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                  </div></>
+                ) : (
+                  <>
+                    <h1 className="px-4 py-2 rounded-lg font-bold">No Requests</h1>
+                  </>
+                )}
+              </div>
+            </TabPanel>
+          )}
 
           <TabPanel
             className={"w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl"}
@@ -933,16 +946,16 @@ function Dashboard() {
                 <button onClick={() => { setActiveForumFilter("All Topics"); fetchDiscussions("All Topics"); }} className="bg-blue-400 text-black px-3 py-1 rounded-full text-sm font-medium hover:bg-(--hover) hover:scale-105 hover:cursor-pointer transition-all">
                   All Topics
                 </button>
-                <button onClick={() => { setActiveForumFilter("STEM Research"); fetchDiscussions("STEM Research"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-blue-500 hover:scale-105 hover:cursor-pointer data-selected:bg-blue-400 transition-all">
+                <button onClick={() => { setActiveForumFilter("STEM Research"); fetchDiscussions("STEM Research"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-blue-500 hover:scale-105 hover:cursor-pointer active:bg-blue-400 transition-all">
                   STEM Research
                 </button>
-                <button onClick={() => { setActiveForumFilter("Project Ideas"); fetchDiscussions("Project Ideas"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-green-500 hover:scale-105 hover:cursor-pointer data-selected:bg-green-400 transition-all">
+                <button onClick={() => { setActiveForumFilter("Project Ideas"); fetchDiscussions("Project Ideas"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-green-500 hover:scale-105 hover:cursor-pointer active:bg-green-400 transition-all">
                   Project Ideas
                 </button>
-                <button onClick={() => { setActiveForumFilter("Mentorship Tips"); fetchDiscussions("Mentorship Tips"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-purple-500 hover:scale-105 hover:cursor-pointer data-selected:bg-purple-400 transition-all">
+                <button onClick={() => { setActiveForumFilter("Mentorship Tips"); fetchDiscussions("Mentorship Tips"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-purple-500 hover:scale-105 hover:cursor-pointer active:bg-purple-400 transition-all">
                   Mentorship Tips
                 </button>
-                <button onClick={() => { setActiveForumFilter("General Discussion"); fetchDiscussions("General Discussion"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-yellow-500 hover:scale-105 hover:cursor-pointer hover:text-black data-selected:bg-yellow-400 transition-all">
+                <button onClick={() => { setActiveForumFilter("General Discussion"); fetchDiscussions("General Discussion"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-yellow-500 hover:scale-105 hover:cursor-pointer hover:text-black active:bg-yellow-400 active:text-black transition-all">
                   General Discussion
                 </button>
               </div>
@@ -988,6 +1001,11 @@ function Dashboard() {
                 <legend className="text-2xl font-bold mb-4">
                   Create New Discussion
                 </legend>
+                {forumError && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                    <span className="block sm:inline">{forumError}</span>
+                  </div>
+                )}
                 <Field className="mt-4">
                   <label
                     htmlFor="discussion_title"
