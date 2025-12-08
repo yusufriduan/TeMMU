@@ -1,8 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { Button, Menu, MenuButton, MenuItem, MenuItems } from "@headlessui/react";
-import { Lock, Globe, Plus, Trash2, MessageSquare, StickyNote } from "lucide-react";
+import { supabase } from "../../../lib/supabase";
+import { useEffect, useState, useRef } from "react";
+import { useParams } from "next/navigation";
+import {
+  Button,
+  Menu,
+  MenuButton,
+  MenuItem,
+  MenuItems,
+} from "@headlessui/react";
+import {
+  Lock,
+  Globe,
+  Plus,
+  Trash2,
+  MessageSquare,
+  StickyNote,
+} from "lucide-react";
 
 interface StickyNoteType {
   id: string;
@@ -25,6 +40,8 @@ function WorkspacePage() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [draggedNote, setDraggedNote] = useState<string | null>(null);
+  const noteUpdateTimers = useRef<{ [id: string]: NodeJS.Timeout }>({});
+  const [workspaceName, setWorkspaceName] = useState("");
 
   const stickyColors = [
     "bg-yellow-200",
@@ -34,25 +51,112 @@ function WorkspacePage() {
     "bg-purple-200",
   ];
 
-  const addStickyNote = (color: string) => {
+  const params = useParams();
+
+  const addStickyNote = (content = "", color: string, db_id: string) => {
     const newNote: StickyNoteType = {
-      id: Date.now().toString(),
-      content: "",
+      id: db_id,
+      content: content,
       color: color,
       position: { x: Math.random() * 500, y: Math.random() * 300 },
     };
-    setStickyNotes([...stickyNotes, newNote]);
+    setStickyNotes((prev: StickyNoteType[]) => [...prev, newNote]);
   };
+
+  async function addNoteToDB(color: string) {
+    const { data, error } = await supabase
+      .from("Notes")
+      .insert({ workspace_id: params.id, content: "", color: color })
+      .select();
+
+    if (error) {
+      console.log(error);
+    }
+
+    if (data) {
+      addStickyNote("", color, data[0].id);
+    }
+  }
+
+  useEffect(() => {
+    async function getNotes() {
+      const { data, error } = await supabase
+        .from("Notes")
+        .select("note_id, content, color")
+        .eq("workspace_id", params.id);
+
+      const { data: workspaceData, error: workspaceErr } = await supabase
+        .from("Workspace")
+        .select("workspace_name")
+        .eq("workspace_id", params.id)
+        .single();
+
+      if (error) {
+        console.log(error);
+      }
+
+      if (workspaceData && data && data.length > 0) {
+        setWorkspaceName(workspaceData.workspace_name);
+        data.map((m) => {
+          addStickyNote(m.content, m.color, m.note_id);
+        });
+      }
+    }
+    getNotes();
+  }, []);
+
+  async function updateNoteFromDB(content: string, noteId: string) {
+    const { data, error } = await supabase
+      .from("Notes")
+      .update({ content: content })
+      .eq("note_id", noteId);
+
+    if (error) {
+      console.log(error);
+    }
+  }
 
   const updateNoteContent = (id: string, content: string) => {
     setStickyNotes(
-      stickyNotes.map((note) =>
-        note.id === id ? { ...note, content } : note
-      )
+      stickyNotes.map((note) => (note.id === id ? { ...note, content } : note))
     );
+
+    if (noteUpdateTimers.current[id]) {
+      clearTimeout(noteUpdateTimers.current[id]);
+    }
+
+    noteUpdateTimers.current[id] = setTimeout(() => {
+      let content;
+      stickyNotes.map((n) => {
+        if (n.id === id) {
+          content = n.content;
+        }
+      });
+      if (content) {
+        updateNoteFromDB(content, id);
+      }
+
+      delete noteUpdateTimers.current[id];
+    }, 3000);
   };
 
+  async function deleteNoteFromDB(id: string) {
+    const { data, error } = await supabase
+      .from("Notes")
+      .delete()
+      .eq("note_id", id);
+
+    if (error) {
+      console.log(error);
+    }
+  }
+
   const deleteNote = (id: string) => {
+    stickyNotes.map((n) => {
+      if (n.id === id) {
+        deleteNoteFromDB(id);
+      }
+    });
     setStickyNotes(stickyNotes.filter((note) => note.id !== id));
   };
 
@@ -100,7 +204,7 @@ function WorkspacePage() {
           >
             Back to Dashboard
           </a>
-          <h1 className="text-2xl font-bold">Workspace: Project Alpha</h1>
+          <h1 className="text-2xl font-bold">Workspace: {workspaceName}</h1>
         </div>
 
         {/* Toolbar */}
@@ -119,7 +223,7 @@ function WorkspacePage() {
               {stickyColors.map((color, index) => (
                 <MenuItem key={index}>
                   <button
-                    onClick={() => addStickyNote(color)}
+                    onClick={() => addNoteToDB(color)}
                     className={`block w-full text-left pl-2 py-2 rounded-2xl ${color} hover:opacity-80 transition duration-300 ease-in-out`}
                   >
                     {color.replace("bg-", "").replace("-200", "")} Note
@@ -132,10 +236,11 @@ function WorkspacePage() {
           {/* Chat Toggle */}
           <Button
             onClick={() => setShowChat(!showChat)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 shadow-lg transition-all duration-300 ease-in-out ${showChat
+            className={`flex items-center gap-2 px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 shadow-lg transition-all duration-300 ease-in-out ${
+              showChat
                 ? "bg-(--highlighted) text-white"
                 : "bg-blue-400 text-black hover:bg-blue-500"
-              }`}
+            }`}
           >
             <MessageSquare size={20} />
             <span>Chat</span>
@@ -144,10 +249,11 @@ function WorkspacePage() {
           {/* Access Control */}
           <Button
             onClick={() => setIsPrivate(!isPrivate)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 shadow-lg transition-all duration-300 ease-in-out ${isPrivate
+            className={`flex items-center gap-2 px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 shadow-lg transition-all duration-300 ease-in-out ${
+              isPrivate
                 ? "bg-red-400 text-black hover:bg-red-500"
                 : "bg-green-400 text-black hover:bg-green-500"
-              }`}
+            }`}
           >
             {isPrivate ? <Lock size={20} /> : <Globe size={20} />}
             <span>{isPrivate ? "Private" : "Public"}</span>
@@ -219,7 +325,10 @@ function WorkspacePage() {
                 </p>
               ) : (
                 chatMessages.map((msg) => (
-                  <div key={msg.id} className="bg-(--bg-section) rounded-lg p-3">
+                  <div
+                    key={msg.id}
+                    className="bg-(--bg-section) rounded-lg p-3"
+                  >
                     <div className="flex justify-between items-start mb-1">
                       <span className="font-bold text-sm">{msg.user}</span>
                       <span className="text-xs text-gray-500">
