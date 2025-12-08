@@ -20,6 +20,7 @@ import CheckForCookies from "./components/checkforcookies";
 import { Fragment, useEffect, useState } from "react";
 import ImageWithFallback from "./components/image_with_fallback";
 import { supabase } from "../lib/supabase";
+import { useRef } from "react";
 
 interface workspaceContentFormat {
   label: string;
@@ -93,59 +94,6 @@ const chatSeed = [
   },
 ];
 
-// Sample Forum content data
-const ForumContent = [
-  {
-    title: "We've updated! Check out the new features",
-    author: "Admin",
-    topic: "General Discussion",
-    preview:
-      "Explore the latest updates to our platform, including new collaboration tools and enhanced security features.",
-    replies: 5,
-    views: 20,
-    time: "1 hour ago",
-  },
-  {
-    title: "How to start a STEM research project?",
-    author: "John Doe",
-    topic: "STEM Research",
-    preview:
-      "I'm looking for advice on starting my first research project. What are the key steps?",
-    replies: 12,
-    views: 45,
-    time: "2 hours ago",
-  },
-  {
-    title: "Looking for collaborators on AI project",
-    author: "Jane Smith",
-    topic: "Project Ideas",
-    preview:
-      "Working on a machine learning project and need team members with Python experience.",
-    replies: 8,
-    views: 32,
-    time: "5 hours ago",
-  },
-  {
-    title: "Best practices for mentoring students",
-    author: "Dr. Williams",
-    topic: "Mentorship Tips",
-    preview:
-      "Share your experiences and tips on effective mentorship strategies.",
-    replies: 24,
-    views: 156,
-    time: "1 day ago",
-  },
-  {
-    title: "Weekly check-in: What are you working on?",
-    author: "Community Bot",
-    topic: "General Discussion",
-    preview: "Share your current projects and get feedback from the community!",
-    replies: 36,
-    views: 203,
-    time: "2 days ago",
-  },
-];
-
 // Topic color mapping
 const topicColors: { [key: string]: string } = {
   "STEM Research": "bg-blue-400",
@@ -168,12 +116,21 @@ function Dashboard() {
   const [userData, setUserData] = useState<userDataFormat>();
   const [showCreate, setShowCreate] = useState(false);
   const [menteeList, setMenteeList] = useState<menteeDataFormat[]>([]);
+  const [forums, setForums] = useState<any[]>([]);
+  const [forumTitle, setTitle] = useState<string>("");
+  const [forumTag, setForumTags] = useState<string>("STEM Research");
+  const [forumDesc, setForumDesc] = useState<string>("");
+
+  const [forumCount, setForumCount] = useState<number>(0);
 
   const activeChat = chatSessions.find((chat) => chat.id === activeChatId);
   const nowTime = new Date().toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  const socket = useRef<WebSocket | null>(null);
+
   const handleSelectChat = (id: string) => {
     setActiveChatId(id);
     setChatSessions((prev) =>
@@ -214,6 +171,38 @@ function Dashboard() {
     setMessageInput("");
   };
 
+  async function fetchDiscussions() {
+    let forumArray: any[] = [];
+    console.log("hi");
+    const { data, error } = await supabase
+      .from("Discussions")
+      .select("*, DiscussionComments(count), Clients!inner(client_name)")
+      .limit(10);
+
+    if (error) {
+      console.log(error);
+    }
+
+    if (data) {
+      data.map((f) => {
+        const d = new Date(f.creation_date).toDateString();
+        const fTempArr = {
+          title: f.title,
+          author: f.Clients.client_name,
+          topic: f.tag,
+          preview: f.description,
+          replies: f.DiscussionComments[0].count,
+          time: d,
+        };
+
+        forumArray.push(fTempArr);
+      });
+
+      setForums(forumArray);
+      setForumCount(data.length);
+    }
+  }
+
   useEffect(() => {
     const user_data = localStorage.getItem("User");
     async function fetchUserWorkspaces() {
@@ -247,7 +236,7 @@ function Dashboard() {
 
       const workspaceArray: workspaceContentFormat[] = memberData.map(
         (member) => {
-          // the bug is a ghost errors, these errors shouldn't even exist
+          // the bug is ghost errors, these errors shouldn't even exist
           console.log(Array.isArray(member.Workspace));
           return {
             label: member.Workspace.workspace_name,
@@ -293,13 +282,15 @@ function Dashboard() {
     }
 
     async function fetchUserData() {
-      const { data, error } = await supabase
-        .from("Clients")
-        .select("*")
-        .eq("client_id", user_data)
-        .single();
-      setUserData(data);
-      return data;
+      const userInformation = localStorage.getItem("UserData");
+      if (userInformation) {
+        return JSON.parse(userInformation);
+      } else {
+        const res = await fetch(`/api/data_fetch/${user_data}`);
+        const data = await res.json();
+        localStorage.setItem("UserData", JSON.stringify(data));
+        return data;
+      }
     }
 
     async function fetchAll() {
@@ -310,10 +301,58 @@ function Dashboard() {
           fetchMentees(user_data);
         }
       }
+      fetchDiscussions();
     }
+
+    // socket.current = new WebSocket("ws://localhost:3000/api/chat_server");
 
     fetchAll();
   }, []);
+
+  async function postForums() {
+    const user_id = localStorage.getItem("User");
+    const now = new Date();
+
+    if (forumTitle == "") {
+      console.log("Missing title yusuf pls add error message");
+      return null;
+    }
+
+    const { data, error } = await supabase.from("Discussions").insert({
+      poster_id: user_id,
+      title: forumTitle,
+      description: forumDesc,
+      tag: forumTag,
+      creation_date: now.toISOString(),
+    });
+
+    if (error) {
+      console.log(error);
+    }
+
+    if (forumCount < 10) {
+      const stored = localStorage.getItem("UserData");
+      if (stored) {
+        const user_data = JSON.parse(stored);
+        if (user_data) {
+          const user_name = user_data.client_name;
+
+          const fd = {
+            title: forumTitle,
+            author: user_name,
+            topic: forumTag,
+            preview: forumDesc,
+            replies: 0,
+            time: now.toISOString(),
+          };
+
+          setForums((prev) => [...prev, fd]);
+        }
+      }
+    }
+
+    setShowCreate(false);
+  }
 
   return (
     <div className="w-screen h-full">
@@ -756,7 +795,7 @@ function Dashboard() {
                 </button>
               </div>
               <div className="flex flex-col gap-4">
-                {ForumContent.map((discussion, index) => (
+                {forums.map((discussion, index) => (
                   <div
                     key={index}
                     className="bg-(--bg-section) rounded-2xl p-4 border-2 border-gray-500 hover:border-blue-400 hover:shadow-lg transition-all duration-300 hover:cursor-pointer"
@@ -810,6 +849,8 @@ function Dashboard() {
                     id="discussion_title"
                     name="discussion_title"
                     type="text"
+                    value={forumTitle}
+                    onChange={(e) => setTitle(e.target.value)}
                     className={
                       "w-full bg-(--bg-section) border-2 border-gray-500 rounded-lg p-2 focus:border-blue-400 transition-colors"
                     }
@@ -825,6 +866,8 @@ function Dashboard() {
                   <select
                     id="discussion_topic"
                     name="discussion_topic"
+                    value={forumTag}
+                    onChange={(e) => setForumTags(e.target.value)}
                     className="w-full bg-(--bg-section) rounded-lg p-2 border-2 border-gray-500 focus:border-blue-400 transition-colors"
                   >
                     <option value="STEM Research">STEM Research</option>
@@ -847,6 +890,8 @@ function Dashboard() {
                     name="discussion_content"
                     className="w-full bg-(--bg-section) rounded-lg p-2 border-2 border-gray-500 focus:border-blue-400 transition-colors"
                     rows={4}
+                    value={forumDesc}
+                    onChange={(e) => setForumDesc(e.target.value)}
                   ></textarea>
                 </Field>
                 <Field className="mt-4 flex flex-row justify-around w-[50%] self-center">
@@ -857,7 +902,7 @@ function Dashboard() {
                     Cancel
                   </Button>
                   <Button
-                    onClick={() => setShowCreate(false)}
+                    onClick={() => postForums()}
                     className="mt-4 bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-105 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out"
                   >
                     Post Discussion
