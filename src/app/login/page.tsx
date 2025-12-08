@@ -69,7 +69,7 @@ export default function login() {
 
   return (
     <div className="h-screen w-screen flex justify-center items-center bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="h-4/5 w-2/6 bg-white shadow-2xl rounded-lg flex flex-col items-center">
+      <div className="h-fit w-fit bg-white shadow-2xl rounded-lg flex flex-col items-center justify-center p-15">
         <h1 className="text-3xl font-bold mt-16 mb-2">Welcome Back</h1>
         <p className="mb-7">Log into your account</p>
         <p id="error-msg-login" className="text-red-600 mb-7"></p>

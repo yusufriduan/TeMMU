@@ -28,12 +28,12 @@ function ProfilePage() {
       [id === "full-name"
         ? "fullName"
         : id === "institution-name"
-        ? "institution"
-        : id === "email"
-        ? "email"
-        : id === "student-type"
-        ? "studentType"
-        : id]: value,
+          ? "institution"
+          : id === "email"
+            ? "email"
+            : id === "student-type"
+              ? "studentType"
+              : id]: value,
     }));
   };
 
