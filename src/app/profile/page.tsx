@@ -28,12 +28,12 @@ function ProfilePage() {
       [id === "full-name"
         ? "fullName"
         : id === "institution-name"
-          ? "institution"
-          : id === "email"
-            ? "email"
-            : id === "student-type"
-              ? "studentType"
-              : id]: value,
+        ? "institution"
+        : id === "email"
+        ? "email"
+        : id === "student-type"
+        ? "studentType"
+        : id]: value,
     }));
   };
 
@@ -55,7 +55,7 @@ function ProfilePage() {
     setFormData(profileData);
     setIsEditing(false);
     setImgSource(imgSource);
-  }
+  };
 
   async function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
     const arrayBuffer = await blob.arrayBuffer();
@@ -157,7 +157,6 @@ function ProfilePage() {
         setFormData(newProfile);
 
         if (data.profile_picture != null) {
-          console.log(typeof data.profile_picture);
           const bytes: Uint8Array = hexToUint8Array(data.profile_picture);
           console.log(bytes);
           const imgType = guessImageType(Buffer.from(bytes));
@@ -207,7 +206,7 @@ function ProfilePage() {
               </div>
               <div className="border-t border-gray-600 w-[30vw] shadow-4xl"></div>
               <p className="mt-2 text-(--text)">
-                Student Type: {profileData.studentType}
+                User Type: {profileData.studentType}
               </p>
             </div>
           </div>
