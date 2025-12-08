@@ -11,6 +11,7 @@ export default function logout() {
     }
     if (localStorage.getItem("User")) {
       localStorage.removeItem("User");
+      localStorage.removeItem("UserData");
     }
     router.push("/login");
   }, [router]);
