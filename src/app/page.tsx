@@ -224,10 +224,10 @@ function Dashboard() {
         .select(
           `
       Workspace!inner(
-        workspace_name,
         workspace_id,
         creation_date,
         is_private,
+        workspace_name,
         WorkspaceMembers!inner(member_id)
       )
     `
@@ -247,22 +247,16 @@ function Dashboard() {
 
       const workspaceArray: workspaceContentFormat[] = memberData.map(
         (member) => {
-          const workspace = (
-            member.Workspace as {
-              workspace_name: string;
-              workspace_id: string;
-              creation_date: string;
-              is_private: boolean;
-              WorkspaceMembers: { member_id: string }[];
-            }[]
-          )[0];
-
+          // the bug is a ghost errors, these errors shouldn't even exist
+          console.log(Array.isArray(member.Workspace));
           return {
-            label: workspace.workspace_name,
-            href: `/workspace/${workspace.workspace_id}`,
-            lastModified: new Date(workspace.creation_date).toDateString(),
-            AccessType: workspace.is_private ? "Private" : "Public",
-            Collaborators: workspace.WorkspaceMembers?.length ?? 0,
+            label: member.Workspace.workspace_name,
+            href: `/workspace/${member.Workspace.workspace_id}`,
+            lastModified: new Date(
+              member.Workspace.creation_date
+            ).toDateString(),
+            AccessType: member.Workspace.is_private ? "Private" : "Public",
+            Collaborators: member.Workspace.WorkspaceMembers?.length ?? 0,
           };
         }
       );
