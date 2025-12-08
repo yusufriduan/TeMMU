@@ -250,7 +250,7 @@ function Dashboard() {
 
       const workspaceArray: workspaceContentFormat[] = memberData.map(
         (member) => {
-          // the bug is ghost errors, these errors shouldn't even exist
+          // the bug is ghost errors, these errors shouldn't even exist. You can probably still run the site normally.
           console.log(Array.isArray(member.Workspace));
           return {
             label: member.Workspace.workspace_name,

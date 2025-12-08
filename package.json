@@ -1,5 +1,6 @@
 {
   "name": "temmu",
+  "type": "module",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -19,6 +20,8 @@
     "next": "16.0.6",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "ws": "^8.18.3"
   },
   "devDependencies": {
