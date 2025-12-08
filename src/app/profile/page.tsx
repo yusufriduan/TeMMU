@@ -88,6 +88,17 @@ function ProfilePage() {
         })
         .eq("client_id", userID);
 
+      const dataInJsonString = JSON.stringify({
+        client_id: userID,
+        client_name: profileData.fullName,
+        client_email: profileData.email,
+        client_type: profileData.studentType,
+        profile_picture: hexString,
+        university: profileData.institution,
+      });
+
+      localStorage.setItem("UserItem", dataInJsonString);
+
       if (data) {
         console.log("DB Update success");
       } else {
@@ -138,12 +149,20 @@ function ProfilePage() {
 
     setUserID(user);
 
+    async function fetchUser(user_data: number) {
+      const userInformation = localStorage.getItem("UserData");
+      if (userInformation) {
+        return JSON.parse(userInformation);
+      } else {
+        const res = await fetch(`/api/data_fetch/${user_data}`);
+        const data = await res.json();
+        localStorage.setItem("UserData", JSON.stringify(data));
+        return data;
+      }
+    }
+
     async function getData() {
-      const { data, error } = await supabase
-        .from("Clients")
-        .select("*")
-        .eq("client_id", user)
-        .single();
+      const data = await fetchUser(user);
 
       if (data) {
         const newProfile = {
