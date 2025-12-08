@@ -297,13 +297,25 @@ function Dashboard() {
 
     async function fetchUserData() {
       const userInformation = localStorage.getItem("UserData");
-      if (userInformation) {
-        return JSON.parse(userInformation);
+      if (userInformation && userInformation !== "undefined" && userInformation !== "null") {
+        try {
+          return JSON.parse(userInformation);
+        } catch (e) {
+          console.error("Error parsing UserData", e);
+          return null;
+        }
       } else {
-        const res = await fetch(`/api/data_fetch/${user_data}`);
-        const data = await res.json();
-        localStorage.setItem("UserData", JSON.stringify(data));
-        return data;
+        if (!user_data || user_data === "undefined") return null;
+        try {
+          const res = await fetch(`/api/data_fetch/${user_data}`);
+          if (!res.ok) return null;
+          const data = await res.json();
+          localStorage.setItem("UserData", JSON.stringify(data));
+          return data;
+        } catch (error) {
+          console.error(error);
+          return null;
+        }
       }
     }
 
