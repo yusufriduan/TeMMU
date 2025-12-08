@@ -74,7 +74,7 @@ function WorkspacePage() {
     }
 
     if (data) {
-      addStickyNote("", color, data[0].id);
+      addStickyNote("", color, data[0].note_id);
     }
   }
 
@@ -106,6 +106,7 @@ function WorkspacePage() {
   }, []);
 
   async function updateNoteFromDB(content: string, noteId: string) {
+    console.log(noteId);
     const { data, error } = await supabase
       .from("Notes")
       .update({ content: content })
@@ -126,18 +127,9 @@ function WorkspacePage() {
     }
 
     noteUpdateTimers.current[id] = setTimeout(() => {
-      let content;
-      stickyNotes.map((n) => {
-        if (n.id === id) {
-          content = n.content;
-        }
-      });
-      if (content) {
-        updateNoteFromDB(content, id);
-      }
-
+      updateNoteFromDB(content, id);
       delete noteUpdateTimers.current[id];
-    }, 3000);
+    }, 1000);
   };
 
   async function deleteNoteFromDB(id: string) {
