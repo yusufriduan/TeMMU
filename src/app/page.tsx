@@ -489,7 +489,7 @@ function Dashboard() {
               </div>
               <Tab
                 className={
-                  "rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
+                  "hidden rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
                 }
                 disabled
               >
@@ -515,7 +515,7 @@ function Dashboard() {
               <MenuItems
                 anchor="bottom end"
                 transition
-                className="bg-(--foreground) rounded-3xl p-2 flex flex-col gap-2 border-black border w-(--button-width) [--anchor-gap: 8px] origin-top transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0"
+                className="bg-(--foreground) rounded-3xl p-2 flex flex-col gap-2 border-black border w-(--button-width) [--anchor-gap: 8px] origin-top transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0 z-100"
               >
                 <MenuItem>
                   <a
@@ -709,7 +709,7 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div className="absolute top-45 right-30 z-100">
+              <div className="absolute top-45 right-30 z-50">
                 <Button onClick={() => setIsManaging(!isManaging)} className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--hover) data-active:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out">
                   {isManaging ? "Done Managing" : "Manage Mentors"}</Button>
               </div>

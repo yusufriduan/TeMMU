@@ -30,7 +30,7 @@ function ProfileCard() {
           <p className="text-sm">Number of STEM Projects placeholder</p>
         </div>
         <div className="flex flex-row justify-around mt-4">
-          <Button className={'bg-sky-400 p-2 rounded-lg hover:bg-(--hover) hover:scale-110 hover:cursor-pointer data-selected:bg-(--highlighted) transition duration-150 ease-in-out'}>Add Mentor</Button>
+          <Button className={'bg-sky-400 p-2 rounded-lg shadow-lg hover:bg-(--hover) hover:scale-110 hover:cursor-pointer data-selected:bg-(--highlighted) transition duration-150 ease-in-out'}>Add Mentor</Button>
         </div>
       </div>
     </div>

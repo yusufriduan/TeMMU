@@ -97,7 +97,7 @@ export default function login() {
           height={14}
         ></InputBox>
         <br></br>
-        <div id="extra-login-sect" className="w-full relative pl-16 pr-16">
+        <div id="extra-login-sect" className="w-full relative pl-6 pr-6 mb-4">
           <span className="flex flex-row float-left">
             <input
               type="checkbox"
@@ -115,7 +115,6 @@ export default function login() {
             Forgot Password?
           </button>
         </div>
-        <br></br>
         <button
           onClick={verifyData}
           className="inline-block w-96 h-14 mb-2 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-lg text-white text-xl cursor-pointer transition delay-150 duration-300 ease-in-out active:scale-75"
