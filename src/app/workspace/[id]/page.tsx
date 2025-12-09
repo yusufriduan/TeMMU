@@ -137,7 +137,32 @@ function WorkspacePage() {
         });
       }
     }
+
+    async function getChats() {
+      const { data, error } = await supabase
+        .from("WorkspaceChats")
+        .select("*, Clients!inner(client_name)")
+        .eq("workspace_id", params.id);
+
+      console.log(data);
+
+      if (data && data.length > 0) {
+        data.map((m) => {
+          const date = new Date(m.date_sent);
+          const chatFormat: ChatMessage = {
+            id: m.sender_id,
+            user: m.Clients.client_name,
+            message: m.content,
+            timestamp: date,
+          };
+
+          setChatMessages((prev) => [...prev, chatFormat]);
+        });
+      }
+    }
+
     getNotes();
+    getChats();
 
     socket.on("connect", () => {
       console.log("Connected");
