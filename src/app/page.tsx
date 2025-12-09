@@ -14,15 +14,16 @@ import {
   Input,
   Field,
   Fieldset,
-  Select
+  Select,
 } from "@headlessui/react";
-import { User, Send, Plus } from "lucide-react";
+import { User, Send, Plus, University } from "lucide-react";
 import CheckForCookies from "./components/checkforcookies";
 import { Fragment, useEffect, useState } from "react";
 import ImageWithFallback from "./components/image_with_fallback";
 import { supabase } from "../lib/supabase";
-import { useRef } from "react";
 import ProfileCard from "./components/profile_card";
+import LoadImage from "../lib/LoadImage";
+import { profile } from "console";
 
 interface workspaceContentFormat {
   label: string;
@@ -46,12 +47,31 @@ interface menteeDataFormat {
   mentee: number;
   enrolled: boolean;
   mentee_name: string;
+  mentee_email: string;
+  mentee_university: string;
 }
 
 interface mentorDataFormat {
   mentor_id: number;
   enrolled: boolean;
   mentor_name: string;
+}
+
+interface mentorReturnFormat {
+  mentor_id: string;
+  count: string;
+  mentor_name: string;
+  profile_picture: string;
+  university: string;
+}
+
+interface recommendedMentors {
+  id: string;
+  mentor_id: string;
+  name: string;
+  profile_picture: string;
+  university: string;
+  contribution: number;
 }
 
 const chatSeed = [
@@ -134,16 +154,18 @@ function Dashboard() {
   const [forumTitle, setTitle] = useState<string>("");
   const [forumTag, setForumTags] = useState<string>("STEM Research");
   const [forumDesc, setForumDesc] = useState<string>("");
-  const [activeForumFilter, setActiveForumFilter] = useState<string>("All Topics");
+  const [activeForumFilter, setActiveForumFilter] =
+    useState<string>("All Topics");
   const [forumCount, setForumCount] = useState<number>(0);
   const [forumError, setForumError] = useState<string>("");
+  const [recommendedMentors, setRecommendedMentors] = useState<
+    recommendedMentors[]
+  >([]);
   const activeChat = chatSessions.find((chat) => chat.id === activeChatId);
   const nowTime = new Date().toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
-
-  const socket = useRef<WebSocket | null>(null);
 
   const handleSelectChat = (id: string) => {
     setActiveChatId(id);
@@ -171,24 +193,50 @@ function Dashboard() {
       prev.map((chat) =>
         chat.id === activeChat.id
           ? {
-            ...chat,
-            unread: 0,
-            lastMessage: text,
-            messages: [
-              ...chat.messages,
-              { from: "you", content: text, timestamp: ts },
-            ],
-          }
+              ...chat,
+              unread: 0,
+              lastMessage: text,
+              messages: [
+                ...chat.messages,
+                { from: "you", content: text, timestamp: ts },
+              ],
+            }
           : chat
       )
     );
     setMessageInput("");
   };
 
+  async function fetchMentors() {
+    const id = localStorage.getItem("User");
+    console.log(id);
+    const { data, error } = await supabase.rpc("top_mentors", { user_id: id });
+
+    if (data && data.length > 0 && id) {
+      const tempArr: recommendedMentors[] = [];
+      data.map((m: mentorReturnFormat) => {
+        const url = LoadImage(m.profile_picture);
+        const mentor: recommendedMentors = {
+          id: id,
+          mentor_id: m.mentor_id,
+          name: m.mentor_name,
+          profile_picture: url,
+          university: m.university,
+          contribution: Number(m.count),
+        };
+        tempArr.push(mentor);
+      });
+      setRecommendedMentors(tempArr);
+    }
+    console.log(data, error);
+  }
+
   async function fetchDiscussions(topicFilter: string = "All Topics") {
     let forumArray: any[] = [];
-    let query = supabase.from("Discussions").select("*, DiscussionComments(count), Clients!inner(client_name)").limit(10);
-    console.log("hi");
+    let query = supabase
+      .from("Discussions")
+      .select("*, DiscussionComments(count), Clients!inner(client_name)")
+      .limit(10);
     if (topicFilter !== "All Topics") {
       query = query.eq("tag", topicFilter);
     }
@@ -215,6 +263,26 @@ function Dashboard() {
       setForums(forumArray);
       setForumCount(data.length);
     }
+  }
+
+  async function removeMentees(id: number) {
+    const { data, error } = await supabase
+      .from("MenteeList")
+      .delete()
+      .eq("mentee", id);
+
+    setMenteeList((prev) => prev.filter((m) => m.mentee !== id));
+  }
+
+  async function enrollMentee(id: number) {
+    const { data, error } = await supabase
+      .from("MenteeList")
+      .update({ enrolled: true })
+      .eq("mentee", id);
+
+    setMenteeList((prev) =>
+      prev.map((m) => (m.mentee === id ? { ...m, enrolled: true } : m))
+    );
   }
 
   useEffect(() => {
@@ -248,21 +316,21 @@ function Dashboard() {
         return;
       }
 
-      const workspaceArray: workspaceContentFormat[] = memberData.map(
-        (member) => {
-          // the bug is ghost errors, these errors shouldn't even exist. You can probably still run the site normally.
-          console.log(Array.isArray(member.Workspace));
-          return {
-            label: member.Workspace.workspace_name,
-            href: `/workspace/${member.Workspace.workspace_id}`,
-            lastModified: new Date(
-              member.Workspace.creation_date
-            ).toDateString(),
-            AccessType: member.Workspace.is_private ? "Private" : "Public",
-            Collaborators: member.Workspace.WorkspaceMembers?.length ?? 0,
-          };
-        }
-      );
+      const workspaceArray: workspaceContentFormat[] = memberData
+        .map((member) => {
+          const workspaces = Array.isArray(member.Workspace)
+            ? member.Workspace
+            : [member.Workspace];
+
+          return workspaces.map((ws) => ({
+            label: ws.workspace_name,
+            href: `/workspace/${ws.workspace_id}`,
+            lastModified: new Date(ws.creation_date).toDateString(),
+            AccessType: ws.is_private ? "Private" : "Public",
+            Collaborators: ws.WorkspaceMembers?.length ?? 0,
+          }));
+        })
+        .flat();
 
       setWorkspaces(workspaceArray);
     }
@@ -270,19 +338,22 @@ function Dashboard() {
     async function fetchMentees(mentorID: string) {
       const { data, error } = await supabase
         .from("MenteeList")
-        .select(`mentee, enrolled, Mentee:Clients!mentee(client_name)`)
+        .select(
+          `mentee, enrolled, Mentee:Clients!mentee(client_name, client_email, university)`
+        )
         .eq("mentor", mentorID);
 
       if (data && data.length > 0) {
-        const menteeArr: menteeDataFormat[] = [];
-        data.map((m) => {
-          const menteeData = {
+        const menteeArr = data.flatMap((m) => {
+          const mentees = Array.isArray(m.Mentee) ? m.Mentee : [m.Mentee];
+
+          return mentees.map((mentee) => ({
             mentee: m.mentee,
             enrolled: m.enrolled,
-            mentee_name: m.Mentee[0].client_name,
-          };
-
-          menteeArr.push(menteeData);
+            mentee_name: mentee?.client_name ?? "",
+            mentee_email: mentee?.client_email ?? "",
+            mentee_university: mentee?.university ?? "",
+          }));
         });
 
         setMenteeList(menteeArr);
@@ -297,7 +368,11 @@ function Dashboard() {
 
     async function fetchUserData() {
       const userInformation = localStorage.getItem("UserData");
-      if (userInformation && userInformation !== "undefined" && userInformation !== "null") {
+      if (
+        userInformation &&
+        userInformation !== "undefined" &&
+        userInformation !== "null"
+      ) {
         try {
           return JSON.parse(userInformation);
         } catch (e) {
@@ -327,6 +402,8 @@ function Dashboard() {
         if (user_data) {
           fetchMentees(user_data);
         }
+      } else {
+        fetchMentors();
       }
       fetchDiscussions();
     }
@@ -384,7 +461,8 @@ function Dashboard() {
     setShowCreate(false);
   }
 
-  async function createWorkspace() { // Add this new function
+  async function createWorkspace() {
+    // Add this new function
     const user_id = localStorage.getItem("User");
     const now = new Date();
 
@@ -398,11 +476,14 @@ function Dashboard() {
       return;
     }
 
-    const { data, error } = await supabase.from("Workspace").insert({
-      workspace_name: WorkspaceName,
-      is_private: WorkspaceAccessType === "private",
-      creation_date: now.toISOString(),
-    }).select();
+    const { data, error } = await supabase
+      .from("Workspace")
+      .insert({
+        workspace_name: WorkspaceName,
+        is_private: WorkspaceAccessType === "private",
+        creation_date: now.toISOString(),
+      })
+      .select();
 
     console.log(data);
 
@@ -418,16 +499,18 @@ function Dashboard() {
           href: `/workspace/${data[0].workspace_id}`,
           lastModified: new Date(data[0].creation_date).toDateString(),
           AccessType: data[0].is_private ? "Private" : "Public",
-          Collaborators: 0, // Initially 0, as only the creator is a member at this point
+          Collaborators: 1,
         };
 
         setWorkspaces((prev) => [...prev, formattedNewWorkspace]);
 
-        const { data: insertedMemberData, error: memberError } = await supabase.from("WorkspaceMembers").insert({
-          workspace_id: newWorkspaceId,
-          member_id: user_id,
-          member_type: "Owner",
-        });
+        const { data: insertedMemberData, error: memberError } = await supabase
+          .from("WorkspaceMembers")
+          .insert({
+            workspace_id: newWorkspaceId,
+            member_id: user_id,
+            member_type: "Owner",
+          });
 
         console.log("Adding workspace member:", { insertedMemberData });
 
@@ -543,7 +626,11 @@ function Dashboard() {
               "w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto bg-clip-content"
             }
           >
-            <div className={`${isCreating ? "hidden" : "flex"} flex-col h-full w-full p-6`}>
+            <div
+              className={`${
+                isCreating ? "hidden" : "flex"
+              } flex-col h-full w-full p-6`}
+            >
               <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Your Workspaces</h1>
                 <Button
@@ -568,8 +655,9 @@ function Dashboard() {
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <span
-                          className={`${AccessTypesColors[workspace.AccessType]
-                            } text-black px-2 py-1 rounded-lg text-xs font-medium`}
+                          className={`${
+                            AccessTypesColors[workspace.AccessType]
+                          } text-black px-2 py-1 rounded-lg text-xs font-medium`}
                         >
                           {workspace.AccessType}
                         </span>
@@ -590,9 +678,15 @@ function Dashboard() {
                 ))}
               </div>
             </div>
-            <div className={`${isCreating ? "flex" : "hidden"} flex-col justify-center w-full h-[60vh] mt-10 items-center`}>
+            <div
+              className={`${
+                isCreating ? "flex" : "hidden"
+              } flex-col justify-center w-full h-[60vh] mt-10 items-center`}
+            >
               <Fieldset className="mt-6 w-[60%]">
-                <legend className="text-lg font-bold mb-4">New Workspace</legend>
+                <legend className="text-lg font-bold mb-4">
+                  New Workspace
+                </legend>
                 <Field className="mb-4">
                   <label
                     htmlFor="workspace_name"
@@ -618,7 +712,13 @@ function Dashboard() {
                   >
                     Access Type
                   </label>
-                  <Select name="status" aria-label="Access Type" className="w-full bg-(--bg-section) rounded-lg p-2 border-2 border-gray-500 focus:border-blue-400 transition-colors" value={WorkspaceAccessType} onChange={(e) => setWorkspaceAccessType(e.target.value)}>
+                  <Select
+                    name="status"
+                    aria-label="Access Type"
+                    className="w-full bg-(--bg-section) rounded-lg p-2 border-2 border-gray-500 focus:border-blue-400 transition-colors"
+                    value={WorkspaceAccessType}
+                    onChange={(e) => setWorkspaceAccessType(e.target.value)}
+                  >
                     <option value="public">Public</option>
                     <option value="private">Private</option>
                   </Select>
@@ -634,7 +734,9 @@ function Dashboard() {
                   </Button>
                   <Button
                     onClick={() => setIsCreating(false)}
-                    className={"bg-red-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-105 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out"}
+                    className={
+                      "bg-red-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-105 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out"
+                    }
                   >
                     Cancel
                   </Button>
@@ -650,7 +752,11 @@ function Dashboard() {
               }
             >
               {/* Find Mentors Container */}
-              <div className={`${isManaging ? "hidden" : "flex"} flex-col items-center w-full h-full p-20 overflow-y-auto`}>
+              <div
+                className={`${
+                  isManaging ? "hidden" : "flex"
+                } flex-col items-center w-full h-full p-20 overflow-y-auto`}
+              >
                 <h1 className="text-2xl mb-1 font-bold">Looking for Mentor?</h1>
                 <span className="text-lg mb-4">Just Search!</span>
                 <form className="flex flex-row gap-4">
@@ -672,8 +778,19 @@ function Dashboard() {
                 {/* Recommended Mentors Section */}
                 <div className="flex flex-col items-center mt-4">
                   <h1>Here's some recommended tutors you may like!</h1>
-                  <div className="grid grid-cols-3 gap-4 p-4">
-                    <ProfileCard />
+                  <div className="grid grid-cols-3">
+                    {recommendedMentors.map((m) => (
+                      <div key={m.name} className="grid grid-cols-3 gap-4 p-4">
+                        <ProfileCard
+                          id={m.id}
+                          mentor_id={m.mentor_id}
+                          name={m.name}
+                          profile_picture={m.profile_picture}
+                          university={m.university}
+                          contribution={m.contribution}
+                        />
+                      </div>
+                    ))}
                   </div>
 
                   {/* Search Results */}
@@ -691,11 +808,19 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div className={`${isManaging ? "flex flex-col items-center p-2 w-full h-full" : "hidden"}`}>
+              <div
+                className={`${
+                  isManaging
+                    ? "flex flex-col items-center p-2 w-full h-full"
+                    : "hidden"
+                }`}
+              >
                 <h1 className="text-2xl mb-1 font-bold">Manage Mentors</h1>
-                <span className="text-lg mb-4">Here are your current mentors:</span>
+                <span className="text-lg mb-4">
+                  Here are your current mentors:
+                </span>
                 <div className="grid grid-cols-3 gap-4 w-[80%] max-h-[60%] overflow-y-auto">
-                  {mentorList.map((m) =>
+                  {mentorList.map((m) => (
                     <div
                       key={m.mentor_id}
                       className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
@@ -705,21 +830,26 @@ function Dashboard() {
                         Remove Mentors
                       </Button>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
 
               <div className="absolute top-45 right-30 z-50">
-                <Button onClick={() => setIsManaging(!isManaging)} className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--hover) data-active:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out">
-                  {isManaging ? "Done Managing" : "Manage Mentors"}</Button>
+                <Button
+                  onClick={() => setIsManaging(!isManaging)}
+                  className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--hover) data-active:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out"
+                >
+                  {isManaging ? "Done Managing" : "Manage Mentors"}
+                </Button>
               </div>
             </TabPanel>
           )}
 
           {userData?.client_type === "Mentor" && (
-
             <TabPanel
-              className={"flex flex-col justify-between items-center w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto p-4"}
+              className={
+                "flex flex-col justify-between items-center w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto p-4"
+              }
             >
               {" "}
               {/* Manage Mentees Container */}
@@ -736,8 +866,14 @@ function Dashboard() {
                         key={m.mentee}
                         className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
                       >
-                        <span>{m.mentee_name}</span>
-                        <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                        <span>
+                          {m.mentee_name} | {m.mentee_email} |{" "}
+                          {m.mentee_university}
+                        </span>
+                        <Button
+                          onClick={(e) => removeMentees(m.mentee)}
+                          className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold"
+                        >
                           Remove Mentee
                         </Button>
                       </div>
@@ -746,29 +882,43 @@ function Dashboard() {
               </div>
               <div className="mt-2 w-[80%] max-h-[60%] border-t border-gray-600">
                 {menteeList.length > 0 ? (
-                  <><h1 className="px-4 py-2 rounded-lg font-bold">Requests</h1><div className="flex flex-col gap-4 w-full h-[40%]">
-                    {menteeList
-                      .filter((m) => !m.enrolled)
-                      .map((m) => (
-                        <div
-                          key={m.mentee}
-                          className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
-                        >
-                          <span>{m.mentee_name}</span>
-                          <div className="flex flex-row gap-2">
-                            <Button className="bg-green-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                              Accept
-                            </Button>
-                            <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                              Decline
-                            </Button>
+                  <>
+                    <h1 className="px-4 py-2 rounded-lg font-bold">Requests</h1>
+                    <div className="flex flex-col gap-4 w-full h-[40%]">
+                      {menteeList
+                        .filter((m) => !m.enrolled)
+                        .map((m) => (
+                          <div
+                            key={m.mentee}
+                            className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
+                          >
+                            <span>
+                              {m.mentee_name} | {m.mentee_email} |{" "}
+                              {m.mentee_university}
+                            </span>
+                            <div className="flex flex-row gap-2">
+                              <Button
+                                onClick={(e) => enrollMentee(m.mentee)}
+                                className="bg-green-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold"
+                              >
+                                Accept
+                              </Button>
+                              <Button
+                                onClick={(e) => removeMentees(m.mentee)}
+                                className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold"
+                              >
+                                Decline
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                  </div></>
+                        ))}
+                    </div>
+                  </>
                 ) : (
                   <>
-                    <h1 className="px-4 py-2 rounded-lg font-bold">No Requests</h1>
+                    <h1 className="px-4 py-2 rounded-lg font-bold">
+                      No Requests
+                    </h1>
                   </>
                 )}
               </div>
@@ -790,10 +940,11 @@ function Dashboard() {
                       <button
                         key={chat.id}
                         onClick={() => handleSelectChat(chat.id)}
-                        className={`flex flex-row justify-between items-center p-2 ${chat.id === activeChatId
-                          ? "bg-(--highlighted)"
-                          : "bg-(--bg-section)"
-                          } rounded-lg shadow-lg hover:cursor-pointer hover:font-bold hover:bg-(--hover) transition duration-200 ease-in-out`}
+                        className={`flex flex-row justify-between items-center p-2 ${
+                          chat.id === activeChatId
+                            ? "bg-(--highlighted)"
+                            : "bg-(--bg-section)"
+                        } rounded-lg shadow-lg hover:cursor-pointer hover:font-bold hover:bg-(--hover) transition duration-200 ease-in-out`}
                       >
                         <div className="flex flex-row justify-between items-center p-2 w-full">
                           <div className="flex flex-col text-left">
@@ -845,16 +996,18 @@ function Dashboard() {
                           {activeChat.messages.map((msg, idx) => (
                             <div
                               key={idx}
-                              className={`flex ${msg.from === "you"
-                                ? "justify-end"
-                                : "justify-start"
-                                }`}
+                              className={`flex ${
+                                msg.from === "you"
+                                  ? "justify-end"
+                                  : "justify-start"
+                              }`}
                             >
                               <div
-                                className={`max-w-[75%] rounded-3xl px-4 py-2 text-sm shadow transition ${msg.from === "you"
-                                  ? "bg-yellow-400 text-black rounded-br-sm"
-                                  : "bg-(--bg-section) text-gray-100 rounded-bl-sm"
-                                  }`}
+                                className={`max-w-[75%] rounded-3xl px-4 py-2 text-sm shadow transition ${
+                                  msg.from === "you"
+                                    ? "bg-yellow-400 text-black rounded-br-sm"
+                                    : "bg-(--bg-section) text-gray-100 rounded-bl-sm"
+                                }`}
                               >
                                 <p>{msg.content}</p>
                                 <span className="mt-1 block text-[11px] text-gray-700 text-right">
@@ -932,8 +1085,9 @@ function Dashboard() {
             }
           >
             <div
-              className={`${showCreate ? "hidden" : "flex"
-                } flex-col w-full h-full p-6`}
+              className={`${
+                showCreate ? "hidden" : "flex"
+              } flex-col w-full h-full p-6`}
             >
               <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Forums</h1>
@@ -955,19 +1109,49 @@ function Dashboard() {
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2 mb-6">
-                <button onClick={() => { setActiveForumFilter("All Topics"); fetchDiscussions("All Topics"); }} className="bg-blue-400 text-black px-3 py-1 rounded-full text-sm font-medium hover:bg-(--hover) hover:scale-105 hover:cursor-pointer transition-all">
+                <button
+                  onClick={() => {
+                    setActiveForumFilter("All Topics");
+                    fetchDiscussions("All Topics");
+                  }}
+                  className="bg-blue-400 text-black px-3 py-1 rounded-full text-sm font-medium hover:bg-(--hover) hover:scale-105 hover:cursor-pointer transition-all"
+                >
                   All Topics
                 </button>
-                <button onClick={() => { setActiveForumFilter("STEM Research"); fetchDiscussions("STEM Research"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-blue-500 hover:scale-105 hover:cursor-pointer active:bg-blue-400 transition-all">
+                <button
+                  onClick={() => {
+                    setActiveForumFilter("STEM Research");
+                    fetchDiscussions("STEM Research");
+                  }}
+                  className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-blue-500 hover:scale-105 hover:cursor-pointer active:bg-blue-400 transition-all"
+                >
                   STEM Research
                 </button>
-                <button onClick={() => { setActiveForumFilter("Project Ideas"); fetchDiscussions("Project Ideas"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-green-500 hover:scale-105 hover:cursor-pointer active:bg-green-400 transition-all">
+                <button
+                  onClick={() => {
+                    setActiveForumFilter("Project Ideas");
+                    fetchDiscussions("Project Ideas");
+                  }}
+                  className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-green-500 hover:scale-105 hover:cursor-pointer active:bg-green-400 transition-all"
+                >
                   Project Ideas
                 </button>
-                <button onClick={() => { setActiveForumFilter("Mentorship Tips"); fetchDiscussions("Mentorship Tips"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-purple-500 hover:scale-105 hover:cursor-pointer active:bg-purple-400 transition-all">
+                <button
+                  onClick={() => {
+                    setActiveForumFilter("Mentorship Tips");
+                    fetchDiscussions("Mentorship Tips");
+                  }}
+                  className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-purple-500 hover:scale-105 hover:cursor-pointer active:bg-purple-400 transition-all"
+                >
                   Mentorship Tips
                 </button>
-                <button onClick={() => { setActiveForumFilter("General Discussion"); fetchDiscussions("General Discussion"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-yellow-500 hover:scale-105 hover:cursor-pointer hover:text-black active:bg-yellow-400 active:text-black transition-all">
+                <button
+                  onClick={() => {
+                    setActiveForumFilter("General Discussion");
+                    fetchDiscussions("General Discussion");
+                  }}
+                  className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-yellow-500 hover:scale-105 hover:cursor-pointer hover:text-black active:bg-yellow-400 active:text-black transition-all"
+                >
                   General Discussion
                 </button>
               </div>
@@ -980,8 +1164,9 @@ function Dashboard() {
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="text-lg font-bold">{discussion.title}</h3>
                       <span
-                        className={`${topicColors[discussion.topic] || "bg-gray-600"
-                          } text-black px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap ml-2`}
+                        className={`${
+                          topicColors[discussion.topic] || "bg-gray-600"
+                        } text-black px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap ml-2`}
                       >
                         {discussion.topic}
                       </span>
@@ -1006,8 +1191,9 @@ function Dashboard() {
               </div>
             </div>
             <div
-              className={`${showCreate ? "flex" : "hidden"
-                } flex-col w-full h-full p-6`}
+              className={`${
+                showCreate ? "flex" : "hidden"
+              } flex-col w-full h-full p-6`}
             >
               <Fieldset className="flex flex-col gap-4">
                 <legend className="text-2xl font-bold mb-4">
