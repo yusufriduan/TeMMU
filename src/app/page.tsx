@@ -97,23 +97,6 @@ interface recommendedMentors {
   contribution: number;
 }
 
-interface mentorReturnFormat {
-  mentor_id: string;
-  count: string;
-  mentor_name: string;
-  profile_picture: string;
-  university: string;
-}
-
-interface recommendedMentors {
-  id: string;
-  mentor_id: string;
-  name: string;
-  profile_picture: string;
-  university: string;
-  contribution: number;
-}
-
 const chatSeed = [
   {
     id: "mentor1",
@@ -272,6 +255,61 @@ function Dashboard() {
     console.log(data, error);
   }
 
+  async function fetchManageMentors(studentID: string) {
+    try {
+      const { data: mentorRows, error: mentorRowsError } = await supabase
+        .from("MenteeList")
+        .select("mentee_list_id, mentor, mentee, enrolled")
+        .eq("mentee", Number(studentID))
+        .limit(100);
+
+      if (mentorRowsError) {
+        console.error("fetchMentors - MentorList error:", mentorRowsError);
+        setMentorList([]);
+        return;
+      }
+
+      if (!mentorRows || mentorRows.length === 0) {
+        setMentorList([]);
+        return;
+      }
+
+      const mentorIds = Array.from(new Set(mentorRows.map((r: any) => r.mentor).filter(Boolean)));
+
+      const { data: clients, error: clientsError } = await supabase
+        .from("Clients")
+        .select("client_id, client_name")
+        .in("client_id", mentorIds);
+
+      if (clientsError) {
+        console.error("fetchMentors - Clients error:", clientsError);
+      }
+
+      const clientNameById: Record<number, string> = {};
+      if (clients && clients.length > 0) {
+        clients.forEach((c: any) => {
+          clientNameById[c.client_id] = c.client_name;
+        });
+      }
+
+      const mentors: mentorDataFormat[] = mentorRows.map((m: any) => ({
+        mentor_list_id: m.mentor_list_id,
+        mentor: m.mentor,
+        mentee: m.mentee,
+        enrolled: m.enrolled,
+        mentor_name: clientNameById[m.mentor] ?? "Unknown",
+      }));
+
+      console.log("Fetched mentors:", mentors);
+
+      setMentorList(mentors);
+    } catch (error) {
+      console.error("fetchMentors unexpected error:", error);
+      setMentorList([]);
+    }
+  }
+
+
   async function fetchDiscussions(topicFilter: string = "All Topics") {
     let forumArray: any[] = [];
     let query = supabase.from("Discussions").select("*, DiscussionComments(*, Clients(client_name)), Clients!inner(client_name)").limit(10);
@@ -420,66 +458,6 @@ function Dashboard() {
       }
     }
 
-    async function fetchMentors(studentID: string) {
-      try {
-        // Load mentor-list rows for this student (mentee)
-        const { data: mentorRows, error: mentorRowsError } = await supabase
-          .from("MenteeList")
-          .select("mentee_list_id, mentor, mentee, enrolled")
-          .eq("mentee", Number(studentID))
-          .limit(100);
-
-        if (mentorRowsError) {
-          console.error("fetchMentors - MentorList error:", mentorRowsError);
-          setMentorList([]);
-          return;
-        }
-
-        if (!mentorRows || mentorRows.length === 0) {
-          setMentorList([]);
-          return;
-        }
-
-        // Collect unique mentor client IDs
-        const mentorIds = Array.from(new Set(mentorRows.map((r: any) => r.mentor).filter(Boolean)));
-
-        // Fetch mentor client names from Clients table
-        const { data: clients, error: clientsError } = await supabase
-          .from("Clients")
-          .select("client_id, client_name")
-          .in("client_id", mentorIds);
-
-        if (clientsError) {
-          console.error("fetchMentors - Clients error:", clientsError);
-          // still try to map without names
-        }
-
-        // Build a map from client_id -> client_name
-        const clientNameById: Record<number, string> = {};
-        if (clients && clients.length > 0) {
-          clients.forEach((c: any) => {
-            clientNameById[c.client_id] = c.client_name;
-          });
-        }
-
-        // Map mentorRows into mentorDataFormat with mentor_name
-        const mentors: mentorDataFormat[] = mentorRows.map((m: any) => ({
-          mentor_list_id: m.mentor_list_id,
-          mentor: m.mentor,
-          mentee: m.mentee,
-          enrolled: m.enrolled,
-          mentor_name: clientNameById[m.mentor] ?? "Unknown",
-        }));
-
-        console.log("Fetched mentors:", mentors);
-
-        setMentorList(mentors);
-      } catch (error) {
-        console.error("fetchMentors unexpected error:", error);
-        setMentorList([]);
-      }
-    }
-
     async function fetchUserData() {
       const userInformation = localStorage.getItem("UserData");
       if (
@@ -518,7 +496,8 @@ function Dashboard() {
         }
       } else if (userInfo.client_type == "Student") {
         if (user_data) {
-          fetchMentors(user_data);
+          fetchManageMentors(user_data);
+          fetchMentors();
         }
       }
       fetchDiscussions();
@@ -1140,8 +1119,8 @@ function Dashboard() {
                         key={chat.id}
                         onClick={() => handleSelectChat(chat.id)}
                         className={`flex flex-row justify-between items-center p-2 ${chat.id === activeChatId
-                            ? "bg-(--highlighted)"
-                            : "bg-(--bg-section)"
+                          ? "bg-(--highlighted)"
+                          : "bg-(--bg-section)"
                           } rounded-lg shadow-lg hover:cursor-pointer hover:font-bold hover:bg-(--hover) transition duration-200 ease-in-out`}
                       >
                         <div className="flex flex-row justify-between items-center p-2 w-full">
@@ -1195,14 +1174,14 @@ function Dashboard() {
                             <div
                               key={idx}
                               className={`flex ${msg.from === "you"
-                                  ? "justify-end"
-                                  : "justify-start"
+                                ? "justify-end"
+                                : "justify-start"
                                 }`}
                             >
                               <div
                                 className={`max-w-[75%] rounded-3xl px-4 py-2 text-sm shadow transition ${msg.from === "you"
-                                    ? "bg-yellow-400 text-black rounded-br-sm"
-                                    : "bg-(--bg-section) text-gray-100 rounded-bl-sm"
+                                  ? "bg-yellow-400 text-black rounded-br-sm"
+                                  : "bg-(--bg-section) text-gray-100 rounded-bl-sm"
                                   }`}
                               >
                                 <p>{msg.content}</p>
