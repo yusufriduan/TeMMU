@@ -69,7 +69,7 @@ export default function login() {
 
   return (
     <div className="h-screen w-screen flex justify-center items-center bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="h-4/5 w-2/6 bg-white shadow-2xl rounded-lg flex flex-col items-center">
+      <div className="h-fit w-fit bg-white shadow-2xl rounded-lg flex flex-col items-center justify-center p-15">
         <h1 className="text-3xl font-bold mt-16 mb-2">Welcome Back</h1>
         <p className="mb-7">Log into your account</p>
         <p id="error-msg-login" className="text-red-600 mb-7"></p>
@@ -97,7 +97,7 @@ export default function login() {
           height={14}
         ></InputBox>
         <br></br>
-        <div id="extra-login-sect" className="w-full relative pl-16 pr-16">
+        <div id="extra-login-sect" className="w-full relative pl-6 pr-6 mb-4">
           <span className="flex flex-row float-left">
             <input
               type="checkbox"
@@ -115,7 +115,6 @@ export default function login() {
             Forgot Password?
           </button>
         </div>
-        <br></br>
         <button
           onClick={verifyData}
           className="inline-block w-96 h-14 mb-2 bg-gradient-to-br from-blue-600/90 to-purple-600/90 rounded-lg text-white text-xl cursor-pointer transition delay-150 duration-300 ease-in-out active:scale-75"
