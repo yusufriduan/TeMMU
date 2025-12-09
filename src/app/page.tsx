@@ -16,7 +16,7 @@ import {
   Fieldset,
   Select
 } from "@headlessui/react";
-import { User, Send, Plus } from "lucide-react";
+import { User, Send, Plus, ChevronDown } from "lucide-react";
 import CheckForCookies from "./components/checkforcookies";
 import { Fragment, useEffect, useState } from "react";
 import ImageWithFallback from "./components/image_with_fallback";
@@ -49,9 +49,32 @@ interface menteeDataFormat {
 }
 
 interface mentorDataFormat {
-  mentor_id: number;
+  mentor_list_id: number;
+  mentor: number;
+  mentee: number;
   enrolled: boolean;
-  mentor_name: string;
+  mentor_name?: string;
+}
+
+interface ForumsCommentFormat {
+  comment_id: number;
+  commenter_id: number;
+  discussion_id: number;
+  comment_text: string;
+  comment_date: string;
+  user: string;
+}
+
+interface ForumDiscussion {
+  id: number;
+  title: string;
+  author: string;
+  topic: string;
+  preview: string;
+  replies: number;
+  time: string;
+  recentComments: ForumsCommentFormat[];
+  views: number;
 }
 
 const chatSeed = [
@@ -130,7 +153,8 @@ function Dashboard() {
   const [showCreate, setShowCreate] = useState(false);
   const [menteeList, setMenteeList] = useState<menteeDataFormat[]>([]);
   const [mentorList, setMentorList] = useState<mentorDataFormat[]>([]);
-  const [forums, setForums] = useState<any[]>([]);
+  const [forums, setForums] = useState<ForumDiscussion[]>([]);
+  const [commentInputs, setCommentInputs] = useState<{ [key: number]: string }>({});
   const [forumTitle, setTitle] = useState<string>("");
   const [forumTag, setForumTags] = useState<string>("STEM Research");
   const [forumDesc, setForumDesc] = useState<string>("");
@@ -187,7 +211,7 @@ function Dashboard() {
 
   async function fetchDiscussions(topicFilter: string = "All Topics") {
     let forumArray: any[] = [];
-    let query = supabase.from("Discussions").select("*, DiscussionComments(count), Clients!inner(client_name)").limit(10);
+    let query = supabase.from("Discussions").select("*, DiscussionComments(*, Clients(client_name)), Clients!inner(client_name)").limit(10);
     console.log("hi");
     if (topicFilter !== "All Topics") {
       query = query.eq("tag", topicFilter);
@@ -202,13 +226,28 @@ function Dashboard() {
     if (data) {
       forumArray = data.map((f) => {
         const d = new Date(f.creation_date).toDateString();
+
+        const comments: ForumsCommentFormat[] = f.DiscussionComments
+          ? f.DiscussionComments.map((c: any) => ({
+            comment_id: c.comment_id,
+            commenter_id: c.commenter_id,
+            discussion_id: c.discussion_id,
+            comment_text: c.comment_text,
+            comment_date: c.comment_date,
+            user: c.Clients?.client_name || "Unknown",
+          }))
+          : [];
+
         return {
+          id: f.discussion_id,
           title: f.title,
           author: f.Clients.client_name,
           topic: f.tag,
           preview: f.description,
-          replies: f.DiscussionComments[0].count,
+          replies: comments.length,
           time: d,
+          recentComments: comments,
+          views: f.views || 0,
         };
       });
 
@@ -295,6 +334,66 @@ function Dashboard() {
       }
     }
 
+    async function fetchMentors(studentID: string) {
+      try {
+        // Load mentor-list rows for this student (mentee)
+        const { data: mentorRows, error: mentorRowsError } = await supabase
+          .from("MenteeList")
+          .select("mentee_list_id, mentor, mentee, enrolled")
+          .eq("mentee", Number(studentID))
+          .limit(100);
+
+        if (mentorRowsError) {
+          console.error("fetchMentors - MentorList error:", mentorRowsError);
+          setMentorList([]);
+          return;
+        }
+
+        if (!mentorRows || mentorRows.length === 0) {
+          setMentorList([]);
+          return;
+        }
+
+        // Collect unique mentor client IDs
+        const mentorIds = Array.from(new Set(mentorRows.map((r: any) => r.mentor).filter(Boolean)));
+
+        // Fetch mentor client names from Clients table
+        const { data: clients, error: clientsError } = await supabase
+          .from("Clients")
+          .select("client_id, client_name")
+          .in("client_id", mentorIds);
+
+        if (clientsError) {
+          console.error("fetchMentors - Clients error:", clientsError);
+          // still try to map without names
+        }
+
+        // Build a map from client_id -> client_name
+        const clientNameById: Record<number, string> = {};
+        if (clients && clients.length > 0) {
+          clients.forEach((c: any) => {
+            clientNameById[c.client_id] = c.client_name;
+          });
+        }
+
+        // Map mentorRows into mentorDataFormat with mentor_name
+        const mentors: mentorDataFormat[] = mentorRows.map((m: any) => ({
+          mentor_list_id: m.mentor_list_id,
+          mentor: m.mentor,
+          mentee: m.mentee,
+          enrolled: m.enrolled,
+          mentor_name: clientNameById[m.mentor] ?? "Unknown",
+        }));
+
+        console.log("Fetched mentors:", mentors);
+
+        setMentorList(mentors);
+      } catch (error) {
+        console.error("fetchMentors unexpected error:", error);
+        setMentorList([]);
+      }
+    }
+
     async function fetchUserData() {
       const userInformation = localStorage.getItem("UserData");
       if (userInformation && userInformation !== "undefined" && userInformation !== "null") {
@@ -327,6 +426,10 @@ function Dashboard() {
         if (user_data) {
           fetchMentees(user_data);
         }
+      } else if (userInfo.client_type == "Student") {
+        if (user_data) {
+          fetchMentors(user_data);
+        }
       }
       fetchDiscussions();
     }
@@ -353,7 +456,7 @@ function Dashboard() {
       description: forumDesc,
       tag: forumTag,
       creation_date: now.toISOString(),
-    });
+    }).select();
 
     if (error) {
       console.log(error);
@@ -367,13 +470,19 @@ function Dashboard() {
         if (user_data) {
           const user_name = user_data.client_name;
 
-          const fd = {
+          // Use the inserted row's discussion_id if available, otherwise fall back to a timestamp-based id
+          const newId = data && data.length > 0 ? data[0].discussion_id : Date.now();
+
+          const fd: ForumDiscussion = {
+            id: newId,
             title: forumTitle,
             author: user_name,
             topic: forumTag,
             preview: forumDesc,
             replies: 0,
             time: now.toISOString(),
+            recentComments: [],
+            views: 0,
           };
 
           setForums((prev) => [...prev, fd]);
@@ -384,7 +493,64 @@ function Dashboard() {
     setShowCreate(false);
   }
 
-  async function createWorkspace() { // Add this new function
+  async function submitForumComment(discussionId: number, commentText: string) {
+    const user_id = localStorage.getItem("User");
+    const text = commentText.trim();
+    const now = new Date();
+    if (!text) return;
+    const { data, error } = await supabase.from("DiscussionComments").insert({
+      commenter_id: user_id,
+      discussion_id: discussionId,
+      comment_text: text,
+      comment_date: now.toISOString(),
+    }).select();
+    if (error) {
+      console.error("Error submitting comment:", error);
+      return;
+    }
+
+    if (data) {
+      const newComment = data[0];
+      const commentForState: ForumsCommentFormat = {
+        comment_id: newComment.comment_id,
+        commenter_id: newComment.commenter_id,
+        discussion_id: newComment.discussion_id,
+        comment_text: newComment.comment_text,
+        comment_date: newComment.comment_date,
+        user: userData ? userData.client_name : "Unknown",
+      };
+      setForums(prev => prev.map(f => {
+        if (f.id === discussionId) {
+          return {
+            ...f,
+            recentComments: [...f.recentComments, commentForState],
+            replies: f.replies + 1,
+          };
+        }
+        return f;
+      }));
+      setCommentInputs(prev => ({ ...prev, [discussionId]: "" }));
+    }
+  }
+
+  async function RemoveMentors() {
+    const user_id = localStorage.getItem("User");
+    if (!user_id || user_id === "undefined") {
+      alert("User not logged in.");
+      return;
+    }
+    const { data, error } = await supabase.from("MenteeList").delete().eq("mentee", user_id).eq("enrolled", true);
+    if (error) {
+      console.error("Error removing mentors:", error);
+      alert("Failed to remove mentors. Please try again.");
+    } else {
+      console.log("Mentors removed:", data);
+      // Refresh mentor list
+      setMentorList([]);
+    }
+  }
+
+  async function createWorkspace() {
     const user_id = localStorage.getItem("User");
     const now = new Date();
 
@@ -691,20 +857,53 @@ function Dashboard() {
                 </div>
               </div>
 
-              <div className={`${isManaging ? "flex flex-col items-center p-2 w-full h-full" : "hidden"}`}>
-                <h1 className="text-2xl mb-1 font-bold">Manage Mentors</h1>
-                <span className="text-lg mb-4">Here are your current mentors:</span>
-                <div className="grid grid-cols-3 gap-4 w-[80%] max-h-[60%] overflow-y-auto">
-                  {mentorList.map((m) =>
-                    <div
-                      key={m.mentor_id}
-                      className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
-                    >
-                      <span>{m.mentor_name}</span>
-                      <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                        Remove Mentors
-                      </Button>
-                    </div>
+              <div className={`${isManaging ? "flex flex-col items-center justify-between p-2 w-full h-full" : "hidden"}`}>
+                <div className="flex flex-col items-center w-full max-h-[50%] p-4 mb-4 mt-10 overflow-y-auto">
+                  <h1 className="text-2xl mb-1 font-bold">Manage Mentors</h1>
+                  {mentorList.filter((m) => m.enrolled).length === 0 ? (
+                    <span className="text-lg mb-4">You have no mentors currently.</span>
+                  ) : (
+                    <>
+                      <span className="text-lg mb-4">Here are your current mentors:</span>
+                      <div className="grid grid-cols-2 gap-4 w-[80%] max-h-[60%] overflow-y-auto">
+                        {mentorList.filter((m) => m.enrolled).map((m, idx) =>
+                          <div
+                            key={m.mentor_list_id ?? `mentor-${idx}`}
+                            className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
+                          >
+                            <span>{m.mentor_name}</span>
+                            <Button onClick={() => RemoveMentors()} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:scale-110 transition duration-200 ease-in-out">
+                              Remove Mentors
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="flex flex-col items-center w-full max-h-[50%] p-4 mb-10 overflow-y-auto">
+                  <h1 className="text-2xl mb-1 font-bold">Pending Requests</h1>
+                  {mentorList.filter((m) => !m.enrolled).length === 0 ? (
+                    <span className="text-lg mb-4">You have no pending mentor requests.</span>
+                  ) : (
+                    <>
+                      <span className="text-lg mb-4">Here are your pending mentor requests:</span>
+                      <div className="grid grid-cols-2 gap-4 w-[80%] max-h-[60%] overflow-y-auto">
+                        {mentorList.filter((m) => !m.enrolled).map((m, idx) =>
+                          <div
+                            key={m.mentor_list_id ?? `pending-mentor-${idx}`}
+                            className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
+                          >
+                            <span>{m.mentor_name}</span>
+                            <div className="flex flex-row gap-2">
+                              <Button onClick={() => RemoveMentors()} className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:scale-110 transition duration-200 ease-in-out">
+                                Cancel Request
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -996,9 +1195,40 @@ function Dashboard() {
                         <span>{discussion.time}</span>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span>{discussion.replies} replies</span>
-                        <span>•</span>
-                        <span>{discussion.views} views</span>
+                        <Menu>
+                          <MenuButton className="flex items-center gap-1 hover:cursor-pointer">
+                            <span>{discussion.replies} comments</span>
+                            <ChevronDown size={20} />
+                          </MenuButton>
+                          <MenuItems
+                            anchor="bottom end"
+                            transition
+                            className="bg-(--foreground) rounded-3xl p-2 flex flex-col gap-2 border-black border w-[25%] [--anchor-gap: 8px] origin-top transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0"
+                          >
+                            {discussion.recentComments.length === 0 ? (
+                              <div className="block pl-2 rounded-2xl p-1">
+                                No comments yet. Be the first to comment!
+                              </div>
+                            ) : (
+                              <>
+                                {discussion.recentComments.map((recentComment, idx) => (
+                                  <MenuItem key={idx} as="div" className="flex flex-col overflow-y-auto" onClick={(e: any) => e.preventDefault()}>
+                                    <div className="block pl-2 rounded-2xl p-1">
+                                      <span className="font-semibold">{recentComment.user}:</span>{" "}
+                                      <span>{recentComment.comment_text}</span>
+                                    </div>
+                                  </MenuItem>
+                                ))}
+                              </>
+                            )}
+                            <div className="w-full h-fit flex flex-row items-center mt-2">
+                              <input type="text" placeholder="Enter a message" value={commentInputs[discussion.id] || ""} onChange={(e) => setCommentInputs(prev => ({ ...prev, [discussion.id]: e.target.value }))} className="mr-2 ml-2 w-70" onKeyDown={(e) => e.stopPropagation()} />
+                              <Button onClick={(e) => { e.preventDefault(); submitForumComment(discussion.id, commentInputs[discussion.id] || ""); }} className="bg-blue-400 text-black px-2 py-1 rounded-2xl hover:cursor-pointer hover:scale-105 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out">
+                                <Send size={18} />
+                              </Button>
+                            </div>
+                          </MenuItems>
+                        </Menu>
                       </div>
                     </div>
                   </div>
