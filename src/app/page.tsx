@@ -46,6 +46,8 @@ interface menteeDataFormat {
   mentee: number;
   enrolled: boolean;
   mentee_name: string;
+  mentee_email: string;
+  mentee_university: string;
 }
 
 interface mentorDataFormat {
@@ -295,10 +297,10 @@ function Dashboard() {
       console.log(mentorID);
       const { data, error } = await supabase
         .from("MenteeList")
-        .select(`mentee, enrolled, Mentee:Clients!mentee(client_name)`)
+        .select(
+          `mentee, enrolled, Mentee:Clients!mentee(client_name, client_email, university)`
+        )
         .eq("mentor", mentorID);
-
-      console.log(data);
 
       if (data && data.length > 0) {
         const menteeArr: menteeDataFormat[] = [];
@@ -308,6 +310,8 @@ function Dashboard() {
             mentee: m.mentee,
             enrolled: m.enrolled,
             mentee_name: m.Mentee.client_name,
+            mentee_email: m.Mentee.client_email,
+            mentee_university: m.Mentee.university,
           };
 
           menteeArr.push(menteeData);
@@ -810,7 +814,10 @@ function Dashboard() {
                         key={m.mentee}
                         className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
                       >
-                        <span>{m.mentee_name}</span>
+                        <span>
+                          {m.mentee_name} | {m.mentee_email} |{" "}
+                          {m.mentee_university}
+                        </span>
                         <Button
                           onClick={(e) => removeMentees(m.mentee)}
                           className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold"
@@ -833,7 +840,10 @@ function Dashboard() {
                             key={m.mentee}
                             className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
                           >
-                            <span>{m.mentee_name}</span>
+                            <span>
+                              {m.mentee_name} | {m.mentee_email} |{" "}
+                              {m.mentee_university}
+                            </span>
                             <div className="flex flex-row gap-2">
                               <Button
                                 onClick={(e) => enrollMentee(m.mentee)}
