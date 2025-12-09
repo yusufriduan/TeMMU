@@ -139,6 +139,7 @@ function WorkspacePage() {
     }
 
     async function getChats() {
+      const user = localStorage.getItem("User");
       const { data, error } = await supabase
         .from("WorkspaceChats")
         .select("*, Clients!inner(client_name)")
@@ -151,7 +152,7 @@ function WorkspacePage() {
           const date = new Date(m.date_sent);
           const chatFormat: ChatMessage = {
             id: m.sender_id,
-            user: m.Clients.client_name,
+            user: m.sender_id == user ? "You" : m.Clients.client_name,
             message: m.content,
             timestamp: date,
           };
