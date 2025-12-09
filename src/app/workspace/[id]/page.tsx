@@ -95,8 +95,11 @@ function WorkspacePage() {
         console.log(error);
       }
 
-      if (workspaceData && data && data.length > 0) {
+      if (workspaceData) {
         setWorkspaceName(workspaceData.workspace_name);
+      }
+
+      if (data && data.length > 0) {
         data.map((m) => {
           addStickyNote(m.content, m.color, m.note_id);
         });
