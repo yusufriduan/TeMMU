@@ -1,8 +1,11 @@
 "use client";
 
+import { io, Socket } from "socket.io-client";
 import { supabase } from "../../../lib/supabase";
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, redirect } from "next/navigation";
+
+import Cookies from "js-cookie";
 import {
   Button,
   Menu,
@@ -33,6 +36,12 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+interface MsgToBeSaved {
+  id: string;
+  text: string;
+  timestamp: string;
+}
+
 function WorkspacePage() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [stickyNotes, setStickyNotes] = useState<StickyNoteType[]>([]);
@@ -42,6 +51,8 @@ function WorkspacePage() {
   const [draggedNote, setDraggedNote] = useState<string | null>(null);
   const noteUpdateTimers = useRef<{ [id: string]: NodeJS.Timeout }>({});
   const [workspaceName, setWorkspaceName] = useState("");
+  const [newMessageQueue, setNewMessageQueue] = useState<MsgToBeSaved[]>([]);
+  const newMessageQueueRef = useRef<MsgToBeSaved[]>([]);
 
   const stickyColors = [
     "bg-yellow-200",
@@ -52,6 +63,8 @@ function WorkspacePage() {
   ];
 
   const params = useParams();
+
+  const socket: Socket = io("http://localhost:3001");
 
   const addStickyNote = (content = "", color: string, db_id: string) => {
     const newNote: StickyNoteType = {
@@ -78,7 +91,26 @@ function WorkspacePage() {
     }
   }
 
+  function addChats(msg: string) {
+    const d = localStorage.getItem("UserData");
+    let name;
+    let id = localStorage.getItem("User");
+    if (d) {
+      name = JSON.parse(d).client_name;
+    }
+
+    socket.emit("sendChat", msg, id, params.id, name);
+  }
+
   useEffect(() => {
+    let user: string | undefined | null = localStorage.getItem("User");
+    if (!user || user == "undefined") {
+      user = Cookies.get("User");
+      if (!user || user == "undefined") {
+        redirect("/login");
+      }
+    }
+
     async function getNotes() {
       const { data, error } = await supabase
         .from("Notes")
@@ -106,7 +138,47 @@ function WorkspacePage() {
       }
     }
     getNotes();
+
+    socket.on("connect", () => {
+      console.log("Connected");
+      socket.emit("register", params.id, user);
+      socket.emit("joinWorkspace", { workspace_id: params.id, userId: user });
+    });
+
+    socket.on("message", (msg) => {
+      console.log(msg);
+      const [senderID, senderName, text] = msg.split(" : ");
+      const now = new Date();
+      const chatFormat: ChatMessage = {
+        id: senderID,
+        user: senderName,
+        message: text,
+        timestamp: now,
+      };
+
+      setChatMessages((prev) => [...prev, chatFormat]);
+    });
+
+    const handleBeforeUnload = () => {
+      socket.emit("saveData", {
+        workspace_id: params.id,
+        arr_of_chats: newMessageQueueRef.current,
+      });
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      socket.off("message");
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      socket.disconnect();
+    };
   }, []);
+
+  useEffect(() => {
+    newMessageQueueRef.current = newMessageQueue;
+    console.log(newMessageQueue);
+  }, [newMessageQueue]);
 
   async function updateNoteFromDB(content: string, noteId: string) {
     console.log(noteId);
@@ -184,6 +256,17 @@ function WorkspacePage() {
         timestamp: new Date(),
       };
       setChatMessages([...chatMessages, message]);
+      addChats(newMessage);
+      const author = localStorage.getItem("User");
+      const now = new Date().toISOString();
+      if (author && newMessage) {
+        const newMsg: MsgToBeSaved = {
+          id: author,
+          text: newMessage,
+          timestamp: now,
+        };
+        setNewMessageQueue((prev) => [...prev, newMsg]);
+      }
       setNewMessage("");
     }
   };

@@ -16,13 +16,14 @@ import {
   Fieldset,
   Select,
 } from "@headlessui/react";
-import { User, Send, Plus } from "lucide-react";
+import { User, Send, Plus, University } from "lucide-react";
 import CheckForCookies from "./components/checkforcookies";
 import { Fragment, useEffect, useState } from "react";
 import ImageWithFallback from "./components/image_with_fallback";
 import { supabase } from "../lib/supabase";
-import { useRef } from "react";
 import ProfileCard from "./components/profile_card";
+import LoadImage from "../lib/LoadImage";
+import { profile } from "console";
 
 interface workspaceContentFormat {
   label: string;
@@ -54,6 +55,23 @@ interface mentorDataFormat {
   mentor_id: number;
   enrolled: boolean;
   mentor_name: string;
+}
+
+interface mentorReturnFormat {
+  mentor_id: string;
+  count: string;
+  mentor_name: string;
+  profile_picture: string;
+  university: string;
+}
+
+interface recommendedMentors {
+  id: string;
+  mentor_id: string;
+  name: string;
+  profile_picture: string;
+  university: string;
+  contribution: number;
 }
 
 const chatSeed = [
@@ -140,13 +158,14 @@ function Dashboard() {
     useState<string>("All Topics");
   const [forumCount, setForumCount] = useState<number>(0);
   const [forumError, setForumError] = useState<string>("");
+  const [recommendedMentors, setRecommendedMentors] = useState<
+    recommendedMentors[]
+  >([]);
   const activeChat = chatSessions.find((chat) => chat.id === activeChatId);
   const nowTime = new Date().toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
-
-  const socket = useRef<WebSocket | null>(null);
 
   const handleSelectChat = (id: string) => {
     setActiveChatId(id);
@@ -188,13 +207,36 @@ function Dashboard() {
     setMessageInput("");
   };
 
+  async function fetchMentors() {
+    const id = localStorage.getItem("User");
+    console.log(id);
+    const { data, error } = await supabase.rpc("top_mentors", { user_id: id });
+
+    if (data && data.length > 0 && id) {
+      const tempArr: recommendedMentors[] = [];
+      data.map((m: mentorReturnFormat) => {
+        const url = LoadImage(m.profile_picture);
+        const mentor: recommendedMentors = {
+          id: id,
+          mentor_id: m.mentor_id,
+          name: m.mentor_name,
+          profile_picture: url,
+          university: m.university,
+          contribution: Number(m.count),
+        };
+        tempArr.push(mentor);
+      });
+      setRecommendedMentors(tempArr);
+    }
+    console.log(data, error);
+  }
+
   async function fetchDiscussions(topicFilter: string = "All Topics") {
     let forumArray: any[] = [];
     let query = supabase
       .from("Discussions")
       .select("*, DiscussionComments(count), Clients!inner(client_name)")
       .limit(10);
-    console.log("hi");
     if (topicFilter !== "All Topics") {
       query = query.eq("tag", topicFilter);
     }
@@ -274,27 +316,26 @@ function Dashboard() {
         return;
       }
 
-      const workspaceArray: workspaceContentFormat[] = memberData.map(
-        (member) => {
-          // the bug is ghost errors, these errors shouldn't even exist. You can probably still run the site normally.
-          console.log(Array.isArray(member.Workspace));
-          return {
-            label: member.Workspace.workspace_name,
-            href: `/workspace/${member.Workspace.workspace_id}`,
-            lastModified: new Date(
-              member.Workspace.creation_date
-            ).toDateString(),
-            AccessType: member.Workspace.is_private ? "Private" : "Public",
-            Collaborators: member.Workspace.WorkspaceMembers?.length ?? 0,
-          };
-        }
-      );
+      const workspaceArray: workspaceContentFormat[] = memberData
+        .map((member) => {
+          const workspaces = Array.isArray(member.Workspace)
+            ? member.Workspace
+            : [member.Workspace];
+
+          return workspaces.map((ws) => ({
+            label: ws.workspace_name,
+            href: `/workspace/${ws.workspace_id}`,
+            lastModified: new Date(ws.creation_date).toDateString(),
+            AccessType: ws.is_private ? "Private" : "Public",
+            Collaborators: ws.WorkspaceMembers?.length ?? 0,
+          }));
+        })
+        .flat();
 
       setWorkspaces(workspaceArray);
     }
 
     async function fetchMentees(mentorID: string) {
-      console.log(mentorID);
       const { data, error } = await supabase
         .from("MenteeList")
         .select(
@@ -303,18 +344,16 @@ function Dashboard() {
         .eq("mentor", mentorID);
 
       if (data && data.length > 0) {
-        const menteeArr: menteeDataFormat[] = [];
-        data.map((m) => {
-          console.log(m);
-          const menteeData = {
+        const menteeArr = data.flatMap((m) => {
+          const mentees = Array.isArray(m.Mentee) ? m.Mentee : [m.Mentee];
+
+          return mentees.map((mentee) => ({
             mentee: m.mentee,
             enrolled: m.enrolled,
-            mentee_name: m.Mentee.client_name,
-            mentee_email: m.Mentee.client_email,
-            mentee_university: m.Mentee.university,
-          };
-
-          menteeArr.push(menteeData);
+            mentee_name: mentee?.client_name ?? "",
+            mentee_email: mentee?.client_email ?? "",
+            mentee_university: mentee?.university ?? "",
+          }));
         });
 
         setMenteeList(menteeArr);
@@ -363,6 +402,8 @@ function Dashboard() {
         if (user_data) {
           fetchMentees(user_data);
         }
+      } else {
+        fetchMentors();
       }
       fetchDiscussions();
     }
@@ -458,7 +499,7 @@ function Dashboard() {
           href: `/workspace/${data[0].workspace_id}`,
           lastModified: new Date(data[0].creation_date).toDateString(),
           AccessType: data[0].is_private ? "Private" : "Public",
-          Collaborators: 0, // Initially 0, as only the creator is a member at this point
+          Collaborators: 1,
         };
 
         setWorkspaces((prev) => [...prev, formattedNewWorkspace]);
@@ -737,8 +778,19 @@ function Dashboard() {
                 {/* Recommended Mentors Section */}
                 <div className="flex flex-col items-center mt-4">
                   <h1>Here's some recommended tutors you may like!</h1>
-                  <div className="grid grid-cols-3 gap-4 p-4">
-                    <ProfileCard />
+                  <div className="grid grid-cols-3">
+                    {recommendedMentors.map((m) => (
+                      <div key={m.name} className="grid grid-cols-3 gap-4 p-4">
+                        <ProfileCard
+                          id={m.id}
+                          mentor_id={m.mentor_id}
+                          name={m.name}
+                          profile_picture={m.profile_picture}
+                          university={m.university}
+                          contribution={m.contribution}
+                        />
+                      </div>
+                    ))}
                   </div>
 
                   {/* Search Results */}
