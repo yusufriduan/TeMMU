@@ -14,13 +14,15 @@ import {
   Input,
   Field,
   Fieldset,
+  Select
 } from "@headlessui/react";
-import { User, Camera, Send, Plus } from "lucide-react";
+import { User, Send, Plus } from "lucide-react";
 import CheckForCookies from "./components/checkforcookies";
 import { Fragment, useEffect, useState } from "react";
 import ImageWithFallback from "./components/image_with_fallback";
 import { supabase } from "../lib/supabase";
 import { useRef } from "react";
+import ProfileCard from "./components/profile_card";
 
 interface workspaceContentFormat {
   label: string;
@@ -44,6 +46,12 @@ interface menteeDataFormat {
   mentee: number;
   enrolled: boolean;
   mentee_name: string;
+}
+
+interface mentorDataFormat {
+  mentor_id: number;
+  enrolled: boolean;
+  mentor_name: string;
 }
 
 const chatSeed = [
@@ -107,22 +115,28 @@ const AccessTypesColors: { [key: string]: string } = {
   Private: "bg-red-400",
 };
 function Dashboard() {
+  const [isCreating, setIsCreating] = useState(false);
+  const [isManaging, setIsManaging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [chatSessions, setChatSessions] = useState(chatSeed);
   const [activeChatId, setActiveChatId] = useState(chatSeed[0]?.id ?? "");
   const [messageInput, setMessageInput] = useState("");
   const [workspaces, setWorkspaces] = useState<workspaceContentFormat[]>([]);
+  const [WorkspaceName, setWorkspaceName] = useState("");
+  const [WorkspaceAccessType, setWorkspaceAccessType] = useState("public");
+
   // later for chats
   const [userData, setUserData] = useState<userDataFormat>();
   const [showCreate, setShowCreate] = useState(false);
   const [menteeList, setMenteeList] = useState<menteeDataFormat[]>([]);
+  const [mentorList, setMentorList] = useState<mentorDataFormat[]>([]);
   const [forums, setForums] = useState<any[]>([]);
   const [forumTitle, setTitle] = useState<string>("");
   const [forumTag, setForumTags] = useState<string>("STEM Research");
   const [forumDesc, setForumDesc] = useState<string>("");
-
+  const [activeForumFilter, setActiveForumFilter] = useState<string>("All Topics");
   const [forumCount, setForumCount] = useState<number>(0);
-
+  const [forumError, setForumError] = useState<string>("");
   const activeChat = chatSessions.find((chat) => chat.id === activeChatId);
   const nowTime = new Date().toLocaleTimeString([], {
     hour: "2-digit",
@@ -157,36 +171,38 @@ function Dashboard() {
       prev.map((chat) =>
         chat.id === activeChat.id
           ? {
-              ...chat,
-              unread: 0,
-              lastMessage: text,
-              messages: [
-                ...chat.messages,
-                { from: "you", content: text, timestamp: ts },
-              ],
-            }
+            ...chat,
+            unread: 0,
+            lastMessage: text,
+            messages: [
+              ...chat.messages,
+              { from: "you", content: text, timestamp: ts },
+            ],
+          }
           : chat
       )
     );
     setMessageInput("");
   };
 
-  async function fetchDiscussions() {
+  async function fetchDiscussions(topicFilter: string = "All Topics") {
     let forumArray: any[] = [];
+    let query = supabase.from("Discussions").select("*, DiscussionComments(count), Clients!inner(client_name)").limit(10);
     console.log("hi");
-    const { data, error } = await supabase
-      .from("Discussions")
-      .select("*, DiscussionComments(count), Clients!inner(client_name)")
-      .limit(10);
+    if (topicFilter !== "All Topics") {
+      query = query.eq("tag", topicFilter);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.log(error);
     }
 
     if (data) {
-      data.map((f) => {
+      forumArray = data.map((f) => {
         const d = new Date(f.creation_date).toDateString();
-        const fTempArr = {
+        return {
           title: f.title,
           author: f.Clients.client_name,
           topic: f.tag,
@@ -194,8 +210,6 @@ function Dashboard() {
           replies: f.DiscussionComments[0].count,
           time: d,
         };
-
-        forumArray.push(fTempArr);
       });
 
       setForums(forumArray);
@@ -283,18 +297,31 @@ function Dashboard() {
 
     async function fetchUserData() {
       const userInformation = localStorage.getItem("UserData");
-      if (userInformation) {
-        return JSON.parse(userInformation);
+      if (userInformation && userInformation !== "undefined" && userInformation !== "null") {
+        try {
+          return JSON.parse(userInformation);
+        } catch (e) {
+          console.error("Error parsing UserData", e);
+          return null;
+        }
       } else {
-        const res = await fetch(`/api/data_fetch/${user_data}`);
-        const data = await res.json();
-        localStorage.setItem("UserData", JSON.stringify(data));
-        return data;
+        if (!user_data || user_data === "undefined") return null;
+        try {
+          const res = await fetch(`/api/data_fetch/${user_data}`);
+          if (!res.ok) return null;
+          const data = await res.json();
+          localStorage.setItem("UserData", JSON.stringify(data));
+          return data;
+        } catch (error) {
+          console.error(error);
+          return null;
+        }
       }
     }
 
     async function fetchAll() {
       const userInfo = await fetchUserData();
+      setUserData(userInfo);
       fetchUserWorkspaces();
       if (userInfo.client_type == "Mentor") {
         if (user_data) {
@@ -310,11 +337,13 @@ function Dashboard() {
   }, []);
 
   async function postForums() {
+    setForumError("");
     const user_id = localStorage.getItem("User");
     const now = new Date();
 
     if (forumTitle == "") {
-      console.log("Missing title yusuf pls add error message");
+      console.log("Missing title. Please add one.");
+      setForumError("Missing title. Please add one.");
       return null;
     }
 
@@ -328,6 +357,7 @@ function Dashboard() {
 
     if (error) {
       console.log(error);
+      setForumError("Error posting forum. Please try again.");
     }
 
     if (forumCount < 10) {
@@ -354,6 +384,67 @@ function Dashboard() {
     setShowCreate(false);
   }
 
+  async function createWorkspace() { // Add this new function
+    const user_id = localStorage.getItem("User");
+    const now = new Date();
+
+    if (!WorkspaceName.trim()) {
+      alert("Workspace name cannot be empty.");
+      return;
+    }
+
+    if (!user_id || user_id === "undefined") {
+      alert("User not logged in.");
+      return;
+    }
+
+    const { data, error } = await supabase.from("Workspace").insert({
+      workspace_name: WorkspaceName,
+      is_private: WorkspaceAccessType === "private",
+      creation_date: now.toISOString(),
+    }).select();
+
+    console.log(data);
+
+    if (error) {
+      console.error("Error creating workspace:", error);
+      alert("Failed to create workspace. Please try again.");
+    } else {
+      console.log("Workspace created:", data);
+      if (data && data.length > 0) {
+        const newWorkspaceId = data[0].workspace_id;
+        const formattedNewWorkspace: workspaceContentFormat = {
+          label: data[0].workspace_name,
+          href: `/workspace/${data[0].workspace_id}`,
+          lastModified: new Date(data[0].creation_date).toDateString(),
+          AccessType: data[0].is_private ? "Private" : "Public",
+          Collaborators: 0, // Initially 0, as only the creator is a member at this point
+        };
+
+        setWorkspaces((prev) => [...prev, formattedNewWorkspace]);
+
+        const { data: insertedMemberData, error: memberError } = await supabase.from("WorkspaceMembers").insert({
+          workspace_id: newWorkspaceId,
+          member_id: user_id,
+          member_type: "Owner",
+        });
+
+        console.log("Adding workspace member:", { insertedMemberData });
+
+        if (memberError) {
+          console.error("Error adding workspace member:", memberError);
+          alert("Workspace created, but failed to add you as a member.");
+        } else {
+          console.log("Workspace member added.");
+        }
+      }
+
+      setWorkspaceName(""); // Clear input
+      setWorkspaceAccessType("public"); // Reset to default
+      setIsCreating(false); // Close the creation form
+    }
+  }
+
   return (
     <div className="w-screen h-full">
       <CheckForCookies />
@@ -377,25 +468,30 @@ function Dashboard() {
               <div className={"flex"}>
                 {" "}
                 {/* Roles Exclusives */}
-                <Tab
-                  className={
-                    " flex rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
-                  }
-                >
-                  Find Mentors
-                </Tab>
-                <Tab
-                  className={
-                    "rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
-                  }
-                >
-                  Manage Mentees
-                </Tab>
+                {userData?.client_type === "Student" && (
+                  <Tab
+                    className={
+                      " flex rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
+                    }
+                  >
+                    Find Mentors
+                  </Tab>
+                )}
+                {userData?.client_type === "Mentor" && (
+                  <Tab
+                    className={
+                      "rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
+                    }
+                  >
+                    Manage Mentees
+                  </Tab>
+                )}
               </div>
               <Tab
                 className={
-                  "rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
+                  "hidden rounded-4xl p-2 data-hover:bg-(--hover) hover:cursor-pointer data-selected:bg-(--highlighted) data-selected:text-white data-seleceted:font-bold transition-[background-color,color] duration-300 ease-in-out"
                 }
+                disabled
               >
                 Chats
               </Tab>
@@ -419,7 +515,7 @@ function Dashboard() {
               <MenuItems
                 anchor="bottom end"
                 transition
-                className="bg-(--foreground) rounded-3xl p-2 flex flex-col gap-2 border-black border w-(--button-width) [--anchor-gap: 8px] origin-top transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0"
+                className="bg-(--foreground) rounded-3xl p-2 flex flex-col gap-2 border-black border w-(--button-width) [--anchor-gap: 8px] origin-top transition duration-200 ease-out data-closed:scale-95 data-closed:opacity-0 z-100"
               >
                 <MenuItem>
                   <a
@@ -447,10 +543,13 @@ function Dashboard() {
               "w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto bg-clip-content"
             }
           >
-            <div className="flex flex-col h-full w-full p-6">
+            <div className={`${isCreating ? "hidden" : "flex"} flex-col h-full w-full p-6`}>
               <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Your Workspaces</h1>
-                <Button className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out">
+                <Button
+                  onClick={() => setIsCreating(true)}
+                  className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out"
+                >
                   Create New Workspace
                 </Button>
               </div>
@@ -465,13 +564,12 @@ function Dashboard() {
                     </h3>
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <span>Last modified: {workspace.lastModified}</span>
+                        <span>Created on: {workspace.lastModified}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <span
-                          className={`${
-                            AccessTypesColors[workspace.AccessType]
-                          } text-black px-2 py-1 rounded-lg text-xs font-medium`}
+                          className={`${AccessTypesColors[workspace.AccessType]
+                            } text-black px-2 py-1 rounded-lg text-xs font-medium`}
                         >
                           {workspace.AccessType}
                         </span>
@@ -492,107 +590,190 @@ function Dashboard() {
                 ))}
               </div>
             </div>
-          </TabPanel>
-
-          <TabPanel
-            className={
-              "flex w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-clip"
-            }
-          >
-            {" "}
-            {/* Find Mentors Container */}
-            <div className="flex flex-col justify-center items-center w-full h-full">
-              <h1 className="text-2xl mb-1 font-bold">Looking for Mentor?</h1>
-              <span className="text-lg mb-4">Just Search!</span>
-              <form className="flex flex-row gap-4">
-                <Input
-                  name="full_name"
-                  type="text"
-                  className={"bg-blue-400 rounded-lg p-2 text-black"}
-                  placeholder="Type the name!"
-                ></Input>
-                <Button
-                  className={
-                    "bg-blue-400 rounded-lg p-2 text-black data-hover:bg-(--highlighted) data-hover:cursor-pointer data-hover:text-white transition duration-300 ease-in-out"
-                  }
-                >
-                  Search
-                </Button>
-              </form>
-
-              {/* Recommended Mentors Section */}
-              <div className="flex flex-col mt-4">
-                <h1>Here's some recommended tutors you may like!</h1>
-                <div className="grid grid-cols-3 gap-4 mt-4">
-                  {/* Mentor cards would go here */}
+            <div className={`${isCreating ? "flex" : "hidden"} flex-col justify-center w-full h-[60vh] mt-10 items-center`}>
+              <Fieldset className="mt-6 w-[60%]">
+                <legend className="text-lg font-bold mb-4">New Workspace</legend>
+                <Field className="mb-4">
+                  <label
+                    htmlFor="workspace_name"
+                    className="block text-sm font-medium mb-2"
+                  >
+                    Workspace Name
+                  </label>
+                  <Input
+                    id="workspace_name"
+                    name="workspace_name"
+                    type="text"
+                    value={WorkspaceName}
+                    onChange={(e) => setWorkspaceName(e.target.value)}
+                    className={
+                      "w-full bg-(--bg-section) border-2 border-gray-500 rounded-lg p-2 focus:border-blue-400 transition-colors"
+                    }
+                  />
+                </Field>
+                <Field className="mb-4">
+                  <label
+                    htmlFor="is_private"
+                    className="block text-sm font-medium mb-2"
+                  >
+                    Access Type
+                  </label>
+                  <Select name="status" aria-label="Access Type" className="w-full bg-(--bg-section) rounded-lg p-2 border-2 border-gray-500 focus:border-blue-400 transition-colors" value={WorkspaceAccessType} onChange={(e) => setWorkspaceAccessType(e.target.value)}>
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                  </Select>
+                </Field>
+                <div className="mt-10 flex flex-row items-center justify-around gap-4">
+                  <Button
+                    onClick={() => createWorkspace()}
+                    className={
+                      "bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-105 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out"
+                    }
+                  >
+                    Create Workspace
+                  </Button>
+                  <Button
+                    onClick={() => setIsCreating(false)}
+                    className={"bg-red-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-105 hover:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out"}
+                  >
+                    Cancel
+                  </Button>
                 </div>
-
-                {/* Search Results */}
-                <div className=" hidden grid-cols-3 gap-4 mt-4">
-                  <h1>Search Results for NAME INPUT</h1>
-                  {/* Mentor cards would go here */}
-                </div>
-
-                {/* No Results Message */}
-                <div className="hidden mt-4">
-                  <p>
-                    No mentors found. Try searching with different keywords.
-                  </p>
-                </div>
-              </div>
+              </Fieldset>
             </div>
           </TabPanel>
 
-          <TabPanel
-            className={"w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl"}
-          >
-            {" "}
-            {/* Manage Mentees Container */}
-            <div className="flex flex-col justify-center items-center w-full h-full overflow-y-auto">
-              <h1 className="text-2xl mb-1 font-bold">Manage Your Mentees</h1>
-              <span className="text-lg mb-4">
-                Here are your current mentees:
-              </span>
-              <div className="flex flex-col gap-4 w-[80%] h-[60%] overflow-y-auto">
-                {menteeList
-                  .filter((m) => m.enrolled)
-                  .map((m) => (
+          {userData?.client_type === "Student" && (
+            <TabPanel
+              className={
+                "flex w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl p-4"
+              }
+            >
+              {/* Find Mentors Container */}
+              <div className={`${isManaging ? "hidden" : "flex"} flex-col items-center w-full h-full p-20 overflow-y-auto`}>
+                <h1 className="text-2xl mb-1 font-bold">Looking for Mentor?</h1>
+                <span className="text-lg mb-4">Just Search!</span>
+                <form className="flex flex-row gap-4">
+                  <Input
+                    name="full_name"
+                    type="text"
+                    className={"bg-blue-400 rounded-lg p-2 text-black"}
+                    placeholder="Type the name!"
+                  ></Input>
+                  <Button
+                    className={
+                      "bg-blue-400 rounded-lg p-2 text-black data-hover:bg-(--highlighted) data-hover:cursor-pointer data-hover:text-white transition duration-300 ease-in-out"
+                    }
+                  >
+                    Search
+                  </Button>
+                </form>
+
+                {/* Recommended Mentors Section */}
+                <div className="flex flex-col items-center mt-4">
+                  <h1>Here's some recommended tutors you may like!</h1>
+                  <div className="grid grid-cols-3 gap-4 p-4">
+                    <ProfileCard />
+                  </div>
+
+                  {/* Search Results */}
+                  <div className=" hidden grid-cols-3 gap-4 mt-4">
+                    <h1>Search Results for NAME INPUT</h1>
+                    {/* Mentor cards would go here */}
+                  </div>
+
+                  {/* No Results Message */}
+                  <div className="hidden mt-4">
+                    <p>
+                      No mentors found. Try searching with different keywords.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`${isManaging ? "flex flex-col items-center p-2 w-full h-full" : "hidden"}`}>
+                <h1 className="text-2xl mb-1 font-bold">Manage Mentors</h1>
+                <span className="text-lg mb-4">Here are your current mentors:</span>
+                <div className="grid grid-cols-3 gap-4 w-[80%] max-h-[60%] overflow-y-auto">
+                  {mentorList.map((m) =>
                     <div
-                      key={m.mentee}
+                      key={m.mentor_id}
                       className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
                     >
-                      <span>{m.mentee_name}</span>
+                      <span>{m.mentor_name}</span>
                       <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                        Remove Mentee
+                        Remove Mentors
                       </Button>
                     </div>
-                  ))}
+                  )}
+                </div>
               </div>
-              <div className="mt-2 w-[80%] border-t border-gray-600">
-                <h1 className="px-4 py-2 rounded-lg font-bold">Requests</h1>
-                <div className="flex flex-col gap-4 w-full h-[40%]">
+
+              <div className="absolute top-45 right-30 z-50">
+                <Button onClick={() => setIsManaging(!isManaging)} className="bg-blue-400 text-black px-4 py-2 rounded-4xl hover:cursor-pointer hover:scale-115 hover:bg-(--hover) data-active:bg-(--highlighted) hover:text-white shadow-lg transition-[background-color,color,scale] duration-300 ease-in-out">
+                  {isManaging ? "Done Managing" : "Manage Mentors"}</Button>
+              </div>
+            </TabPanel>
+          )}
+
+          {userData?.client_type === "Mentor" && (
+
+            <TabPanel
+              className={"flex flex-col justify-between items-center w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto p-4"}
+            >
+              {" "}
+              {/* Manage Mentees Container */}
+              <div className="flex flex-col items-center w-full max-h-[60%] p-4 mb-4 overflow-y-auto">
+                <h1 className="text-2xl mb-1 font-bold">Manage Your Mentees</h1>
+                <span className="text-lg mb-4">
+                  Here are your current mentees:
+                </span>
+                <div className="flex flex-col gap-4 w-[80%] max-h-[60%] overflow-y-auto">
                   {menteeList
-                    .filter((m) => !m.enrolled)
+                    .filter((m) => m.enrolled)
                     .map((m) => (
                       <div
                         key={m.mentee}
                         className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
                       >
                         <span>{m.mentee_name}</span>
-                        <div className="flex flex-row gap-2">
-                          <Button className="bg-green-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                            Accept
-                          </Button>
-                          <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
-                            Decline
-                          </Button>
-                        </div>
+                        <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                          Remove Mentee
+                        </Button>
                       </div>
                     ))}
                 </div>
               </div>
-            </div>
-          </TabPanel>
+              <div className="mt-2 w-[80%] max-h-[60%] border-t border-gray-600">
+                {menteeList.length > 0 ? (
+                  <><h1 className="px-4 py-2 rounded-lg font-bold">Requests</h1><div className="flex flex-col gap-4 w-full h-[40%]">
+                    {menteeList
+                      .filter((m) => !m.enrolled)
+                      .map((m) => (
+                        <div
+                          key={m.mentee}
+                          className="flex flex-row justify-between items-center p-4 bg-blue-300 rounded-lg shadow-lg"
+                        >
+                          <span>{m.mentee_name}</span>
+                          <div className="flex flex-row gap-2">
+                            <Button className="bg-green-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                              Accept
+                            </Button>
+                            <Button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:cursor-pointer hover:font-bold">
+                              Decline
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                  </div></>
+                ) : (
+                  <>
+                    <h1 className="px-4 py-2 rounded-lg font-bold">No Requests</h1>
+                  </>
+                )}
+              </div>
+            </TabPanel>
+          )}
 
           <TabPanel
             className={"w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl"}
@@ -609,11 +790,10 @@ function Dashboard() {
                       <button
                         key={chat.id}
                         onClick={() => handleSelectChat(chat.id)}
-                        className={`flex flex-row justify-between items-center p-2 ${
-                          chat.id === activeChatId
-                            ? "bg-(--highlighted)"
-                            : "bg-(--bg-section)"
-                        } rounded-lg shadow-lg hover:cursor-pointer hover:font-bold hover:bg-(--hover) transition duration-200 ease-in-out`}
+                        className={`flex flex-row justify-between items-center p-2 ${chat.id === activeChatId
+                          ? "bg-(--highlighted)"
+                          : "bg-(--bg-section)"
+                          } rounded-lg shadow-lg hover:cursor-pointer hover:font-bold hover:bg-(--hover) transition duration-200 ease-in-out`}
                       >
                         <div className="flex flex-row justify-between items-center p-2 w-full">
                           <div className="flex flex-col text-left">
@@ -665,18 +845,16 @@ function Dashboard() {
                           {activeChat.messages.map((msg, idx) => (
                             <div
                               key={idx}
-                              className={`flex ${
-                                msg.from === "you"
-                                  ? "justify-end"
-                                  : "justify-start"
-                              }`}
+                              className={`flex ${msg.from === "you"
+                                ? "justify-end"
+                                : "justify-start"
+                                }`}
                             >
                               <div
-                                className={`max-w-[75%] rounded-3xl px-4 py-2 text-sm shadow transition ${
-                                  msg.from === "you"
-                                    ? "bg-yellow-400 text-black rounded-br-sm"
-                                    : "bg-(--bg-section) text-gray-100 rounded-bl-sm"
-                                }`}
+                                className={`max-w-[75%] rounded-3xl px-4 py-2 text-sm shadow transition ${msg.from === "you"
+                                  ? "bg-yellow-400 text-black rounded-br-sm"
+                                  : "bg-(--bg-section) text-gray-100 rounded-bl-sm"
+                                  }`}
                               >
                                 <p>{msg.content}</p>
                                 <span className="mt-1 block text-[11px] text-gray-700 text-right">
@@ -750,13 +928,12 @@ function Dashboard() {
 
           <TabPanel
             className={
-              "w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl overflow-y-auto bg-clip-content"
+              "w-[90vw] h-[80vh] bg-(--foreground) rounded-4xl bg-clip-content"
             }
           >
             <div
-              className={`${
-                showCreate ? "hidden" : "flex"
-              } flex-col w-full h-full p-6`}
+              className={`${showCreate ? "hidden" : "flex"
+                } flex-col w-full h-full p-6`}
             >
               <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Forums</h1>
@@ -778,23 +955,23 @@ function Dashboard() {
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2 mb-6">
-                <button className="bg-blue-400 text-black px-3 py-1 rounded-full text-sm font-medium hover:bg-(--hover) hover:scale-105 hover:cursor-pointer transition-all">
+                <button onClick={() => { setActiveForumFilter("All Topics"); fetchDiscussions("All Topics"); }} className="bg-blue-400 text-black px-3 py-1 rounded-full text-sm font-medium hover:bg-(--hover) hover:scale-105 hover:cursor-pointer transition-all">
                   All Topics
                 </button>
-                <button className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-blue-500 hover:scale-105 hover:cursor-pointer data-selected:bg-blue-400 transition-all">
+                <button onClick={() => { setActiveForumFilter("STEM Research"); fetchDiscussions("STEM Research"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-blue-500 hover:scale-105 hover:cursor-pointer active:bg-blue-400 transition-all">
                   STEM Research
                 </button>
-                <button className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-green-500 hover:scale-105 hover:cursor-pointer data-selected:bg-green-400 transition-all">
+                <button onClick={() => { setActiveForumFilter("Project Ideas"); fetchDiscussions("Project Ideas"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-green-500 hover:scale-105 hover:cursor-pointer active:bg-green-400 transition-all">
                   Project Ideas
                 </button>
-                <button className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-purple-500 hover:scale-105 hover:cursor-pointer data-selected:bg-purple-400 transition-all">
+                <button onClick={() => { setActiveForumFilter("Mentorship Tips"); fetchDiscussions("Mentorship Tips"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-purple-500 hover:scale-105 hover:cursor-pointer active:bg-purple-400 transition-all">
                   Mentorship Tips
                 </button>
-                <button className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-yellow-500 hover:scale-105 hover:cursor-pointer hover:text-black data-selected:bg-yellow-400 transition-all">
+                <button onClick={() => { setActiveForumFilter("General Discussion"); fetchDiscussions("General Discussion"); }} className="bg-(--bg-section) text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-yellow-500 hover:scale-105 hover:cursor-pointer hover:text-black active:bg-yellow-400 active:text-black transition-all">
                   General Discussion
                 </button>
               </div>
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-4 overflow-y-auto">
                 {forums.map((discussion, index) => (
                   <div
                     key={index}
@@ -803,9 +980,8 @@ function Dashboard() {
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="text-lg font-bold">{discussion.title}</h3>
                       <span
-                        className={`${
-                          topicColors[discussion.topic] || "bg-gray-600"
-                        } text-black px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap ml-2`}
+                        className={`${topicColors[discussion.topic] || "bg-gray-600"
+                          } text-black px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap ml-2`}
                       >
                         {discussion.topic}
                       </span>
@@ -830,14 +1006,18 @@ function Dashboard() {
               </div>
             </div>
             <div
-              className={`${
-                showCreate ? "flex" : "hidden"
-              } flex-col w-full h-full p-6`}
+              className={`${showCreate ? "flex" : "hidden"
+                } flex-col w-full h-full p-6`}
             >
               <Fieldset className="flex flex-col gap-4">
                 <legend className="text-2xl font-bold mb-4">
                   Create New Discussion
                 </legend>
+                {forumError && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+                    <span className="block sm:inline">{forumError}</span>
+                  </div>
+                )}
                 <Field className="mt-4">
                   <label
                     htmlFor="discussion_title"

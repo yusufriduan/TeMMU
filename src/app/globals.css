@@ -34,7 +34,7 @@ body {
 }
 
 .profile-card-wrapper {
-  background-color: var(--foreground);
+  background-color: oklch(70.7% 0.165 254.624);
   color: #0a0a0a;
   display: flex;
   flex-direction: column;
